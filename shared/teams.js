@@ -17,51 +17,51 @@ export const CONFERENCES = [
   { name: 'Summit', divisions: ['Canyon', 'Coast'] },
 ];
 
-// [name, abbr, primary, secondary, tagline, perk, arena]
+// [name, city, abbr, primary, secondary, perk, arena]  (cities are made up)
 const RAW = [
   // Frost / North
-  ['Yetis', 'YET', '#5fb4e6', '#13233f', 'Abominable on ice.', 'BRICK_WALL', 'The Summit Dome'],
-  ['Moose', 'MOO', '#7a4a26', '#f0c674', 'Big antlers. Bigger hits.', 'SANDPAPER', 'The Bog'],
-  ['Huskies', 'HSK', '#9aa6b8', '#14284a', 'Run with the pack.', 'SPEEDSTERS', 'Kennel Arena'],
-  ['Narwhals', 'NAR', '#2ec4b6', '#0b2840', 'Unicorns of the sea.', 'SNIPERS', 'The Fjord'],
-  ['Lumberjacks', 'LUM', '#c0392b', '#1b1b1b', 'Timber!', 'GRINDERS', 'Sawmill Gardens'],
-  ['Glaciers', 'GLA', '#b8e6ff', '#24507e', 'Slow? Unstoppable.', 'DISCIPLINED', 'The Ice Shelf'],
-  ['Lynx', 'LNX', '#d9a521', '#262626', 'Pounce on every puck.', 'DANGLERS', 'The Pounce Pit'],
-  ['Wolverines', 'WOL', '#f2c12e', '#3b2716', 'Small. Angry. Relentless.', 'SANDPAPER', 'The Burrow'],
+  ['Yetis', 'Port Kessel', 'YET', '#5fb4e6', '#13233f', 'BRICK_WALL', 'The Summit Dome'],
+  ['Moose', 'Bramblewood', 'MOO', '#7a4a26', '#f0c674', 'SANDPAPER', 'The Bog'],
+  ['Huskies', 'Ironridge', 'HSK', '#9aa6b8', '#14284a', 'SPEEDSTERS', 'Kennel Arena'],
+  ['Narwhals', 'Saltmarsh', 'NAR', '#2ec4b6', '#0b2840', 'SNIPERS', 'The Fjord'],
+  ['Lumberjacks', 'Cedar Hollow', 'LUM', '#c0392b', '#1b1b1b', 'GRINDERS', 'Sawmill Gardens'],
+  ['Glaciers', 'Frostmoor', 'GLA', '#b8e6ff', '#24507e', 'DISCIPLINED', 'The Ice Shelf'],
+  ['Lynx', 'Ashvale', 'LNX', '#d9a521', '#262626', 'DANGLERS', 'The Pounce Pit'],
+  ['Wolverines', 'Blackspruce', 'WOL', '#f2c12e', '#3b2716', 'SANDPAPER', 'The Burrow'],
   // Frost / Harbor
-  ['Orcas', 'ORC', '#151515', '#e9eef2', 'Apex of the ocean.', 'CANNON', 'The Pod'],
-  ['Anchors', 'ANC', '#0b3d91', '#e63946', 'Drop anchor.', 'DISCIPLINED', 'Drydock Arena'],
-  ['Riveters', 'RIV', '#1d4e89', '#f2a541', 'We can do it.', 'GRINDERS', 'The Foundry'],
-  ['Hammerheads', 'HAM', '#5a6e7f', '#ff6b35', 'Head first.', 'CANNON', 'The Tank'],
-  ['Icebreakers', 'ICB', '#d62839', '#f1faee', 'Cut through anything.', 'SPEEDSTERS', 'Port Arena'],
-  ['Nighthawks', 'NHK', '#2e1a47', '#a57cff', 'Own the night.', 'DANGLERS', 'The Roost'],
-  ['Bulldogs', 'BUL', '#7a0019', '#cfcfcf', 'Never let go.', 'SANDPAPER', 'The Doghouse'],
-  ['Specters', 'SPC', '#4a4e69', '#d8c3bd', 'Now you see us.', 'SNIPERS', 'The Haunt'],
+  ['Orcas', 'Gullhaven', 'ORC', '#151515', '#e9eef2', 'CANNON', 'The Pod'],
+  ['Anchors', 'Brinemouth', 'ANC', '#0b3d91', '#e63946', 'DISCIPLINED', 'Drydock Arena'],
+  ['Riveters', 'Boltwater', 'RIV', '#1d4e89', '#f2a541', 'GRINDERS', 'The Foundry'],
+  ['Hammerheads', 'Coralmere', 'HAM', '#5a6e7f', '#ff6b35', 'CANNON', 'The Tank'],
+  ['Icebreakers', 'Kittering Bay', 'ICB', '#d62839', '#f1faee', 'SPEEDSTERS', 'Port Arena'],
+  ['Nighthawks', 'Lantern City', 'NHK', '#2e1a47', '#a57cff', 'DANGLERS', 'The Roost'],
+  ['Bulldogs', 'Granthollow', 'BUL', '#7a0019', '#cfcfcf', 'SANDPAPER', 'The Doghouse'],
+  ['Specters', 'Mistport', 'SPC', '#4a4e69', '#d8c3bd', 'SNIPERS', 'The Haunt'],
   // Summit / Canyon
-  ['Scorpions', 'SCO', '#ff8c00', '#1a1a1a', 'Sting in the tail.', 'SNIPERS', 'Sandpit Arena'],
-  ['Rattlers', 'RAT', '#56702f', '#e9c46a', 'Hear us coming.', 'DANGLERS', 'The Den'],
-  ['Mustangs', 'MUS', '#8b4513', '#f5deb3', 'Run wild.', 'SPEEDSTERS', 'The Corral'],
-  ['Outlaws', 'OUT', '#2f2f2f', '#d4a373', 'Wanted: two points.', 'SANDPAPER', 'The Saloon'],
-  ['Cyclones', 'CYC', '#6a4c93', '#8ac926', "Spin 'em around.", 'PLAYMAKERS', 'The Funnel'],
-  ['Comets', 'COM', '#ffbe0b', '#003049', 'Here and gone.', 'SPEEDSTERS', 'Crater Center'],
-  ['Sundogs', 'SUN', '#ff6f59', '#254441', 'Bright cold days.', 'PLAYMAKERS', 'Halo Arena'],
-  ['Jackalopes', 'JAK', '#c49a6c', '#2a2a72', 'Legends are real.', 'DANGLERS', 'The Mesa'],
+  ['Scorpions', 'Red Mesa', 'SCO', '#ff8c00', '#1a1a1a', 'SNIPERS', 'Sandpit Arena'],
+  ['Rattlers', 'Sagebrush', 'RAT', '#56702f', '#e9c46a', 'DANGLERS', 'The Den'],
+  ['Mustangs', 'Wildrun', 'MUS', '#8b4513', '#f5deb3', 'SPEEDSTERS', 'The Corral'],
+  ['Outlaws', 'Deadwater', 'OUT', '#2f2f2f', '#d4a373', 'SANDPAPER', 'The Saloon'],
+  ['Cyclones', 'Stormfield', 'CYC', '#6a4c93', '#8ac926', 'PLAYMAKERS', 'The Funnel'],
+  ['Comets', 'Starfall', 'COM', '#ffbe0b', '#003049', 'SPEEDSTERS', 'Crater Center'],
+  ['Sundogs', 'Brightwater', 'SUN', '#ff6f59', '#254441', 'PLAYMAKERS', 'Halo Arena'],
+  ['Jackalopes', 'Mirage Springs', 'JAK', '#c49a6c', '#2a2a72', 'DANGLERS', 'The Mesa'],
   // Summit / Coast
-  ['Kodiaks', 'KOD', '#5b3a29', '#ffb300', 'Born in the cold.', 'SANDPAPER', 'The Cave'],
-  ['Sasquatch', 'SAS', '#3e5641', '#d6a75e', 'Seen it? Neither has the goalie.', 'CANNON', 'Timberline Arena'],
-  ['Bison', 'BIS', '#4e342e', '#ffcc80', 'Stampede.', 'GRINDERS', 'The Range'],
-  ['Barons', 'BAR', '#800020', '#d4af37', 'Old money. Hard hits.', 'DISCIPLINED', 'Baron Hall'],
-  ['Dragons', 'DRG', '#2a9d8f', '#e76f51', 'Breathe fire.', 'CANNON', 'The Lair'],
-  ['Riptide', 'RIP', '#00a6d6', '#03045e', 'Pulled under.', 'PLAYMAKERS', 'Undertow Arena'],
-  ['Magma', 'MAG', '#d00000', '#ffba08', 'Molten core.', 'SNIPERS', 'The Caldera'],
-  ['Pilots', 'PIL', '#0077b6', '#f1faee', 'Cleared for takeoff.', 'SPEEDSTERS', 'The Hangar'],
+  ['Kodiaks', 'Bearpaw Isle', 'KOD', '#5b3a29', '#ffb300', 'SANDPAPER', 'The Cave'],
+  ['Sasquatch', 'Fogridge', 'SAS', '#3e5641', '#d6a75e', 'CANNON', 'Timberline Arena'],
+  ['Bison', 'Longgrass', 'BIS', '#4e342e', '#ffcc80', 'GRINDERS', 'The Range'],
+  ['Barons', 'Kingsgate', 'BAR', '#800020', '#d4af37', 'DISCIPLINED', 'Baron Hall'],
+  ['Dragons', 'Emberlake', 'DRG', '#2a9d8f', '#e76f51', 'CANNON', 'The Lair'],
+  ['Riptide', 'Driftwood Bay', 'RIP', '#00a6d6', '#03045e', 'PLAYMAKERS', 'Undertow Arena'],
+  ['Magma', 'Cinderpeak', 'MAG', '#d00000', '#ffba08', 'SNIPERS', 'The Caldera'],
+  ['Pilots', 'Skyhaven', 'PIL', '#0077b6', '#f1faee', 'SPEEDSTERS', 'The Hangar'],
 ];
 
-export const TEAMS = RAW.map(([name, abbr, primary, secondary, tagline, perk, arena], id) => {
+export const TEAMS = RAW.map(([name, city, abbr, primary, secondary, perk, arena], id) => {
   const conf = Math.floor(id / 16);
   const div = Math.floor((id % 16) / 8);
   return {
-    id, name, abbr, primary, secondary, tagline, perk, arena,
+    id, name, city, fullName: `${city} ${name}`, abbr, primary, secondary, perk, arena,
     conf, div,
     confName: CONFERENCES[conf].name,
     divName: CONFERENCES[conf].divisions[div],

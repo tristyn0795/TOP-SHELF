@@ -11,7 +11,7 @@ export function toWorld(inp, flip) {
 export class LocalGame {
   /**
    * o: { canvas, input, audio, teams (engine team descriptors), teamDefs, homeIdx, cfg, humans, seed,
-   *      replays, onEnd(result), onTick(snap) }
+   *      replays, onEnd(result), onTick(snap), board(snap) -> other games' score lines }
    */
   constructor(o) {
     this.o = o;
@@ -68,7 +68,8 @@ export class LocalGame {
       }
     }
     const snap = this.buf[this.buf.length - 1] || snapshot(this.s);
-    this.r.draw(snap, dt, { speed: this.speed });
+    const board = snap.ph === 'intermission' && this.o.board ? this.o.board(snap) : null;
+    this.r.draw(snap, dt, { speed: this.speed, board });
     this.o.onTick?.(snap);
   }
 

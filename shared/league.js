@@ -110,6 +110,14 @@ export function teamOvr(team) {
   return { off: Math.round(avg(f)), def: Math.round(avg(d)), gk: g[0], all: Math.round(avg(f) * 0.45 + avg(d) * 0.3 + g[0] * 0.25) };
 }
 
+// 0-99 team ratings for the NHL '94-style bars on team select and versus screens.
+export function teamRatings(team) {
+  const o = teamOvr(team);
+  const sk = team.roster.filter((p) => p.pos !== 'G');
+  const avg = (k) => Math.round(sk.reduce((a, p) => a + p.r[k], 0) / sk.length);
+  return { off: o.off, def: o.def, gk: o.gk, spd: avg('spd'), chk: avg('chk'), all: o.all };
+}
+
 // Engine team descriptor.
 export function gameTeam(teams, tid, home) {
   const t = teams[tid];
@@ -133,7 +141,7 @@ export function createLeague(o) {
     version: 1, seed: st.seed, userTeam: o.userTeam, year: 2026, settings, teams,
     schedule: makeSchedule(st, settings.seasonLength), day: 0, phase: 'season', playoffs: null, news: [], champions: [],
   };
-  addNews(league, `Welcome to the ${TEAMS[o.userTeam].name}. ${settings.seasonLength} games, 16 playoff spots, one cup.`);
+  addNews(league, `You're behind the bench in ${TEAMS[o.userTeam].city}. ${settings.seasonLength} games to earn a playoff spot.`);
   return league;
 }
 
@@ -189,7 +197,7 @@ export function startNextSeason(league) {
   league.day = 0;
   league.phase = 'season';
   league.playoffs = null;
-  addNews(league, `The ${league.year} season is underway.`);
+  addNews(league, `Opening night of the ${league.year} season.`);
 }
 
 // ---------------------------------------------------------------- quick sim
@@ -348,20 +356,20 @@ export function applyResult(league, result, playoff) {
     if (n >= 3) {
       const tid = result.teamIds[result.goals.find((g) => g.pid === pid).team];
       const p = league.teams[tid].roster.find((x) => x.id === pid);
-      addNews(league, `HAT TRICK! ${p.first} ${p.name} (${T(tid).abbr}) scores ${n} against the ${T(result.teamIds[tid === t0 ? 1 : 0]).name}.`);
+      addNews(league, `HAT TRICK! ${p.first} ${p.name} (${T(tid).abbr}) scores ${n} against ${T(result.teamIds[tid === t0 ? 1 : 0]).city}.`);
     }
   }
   if (result.teamIds.includes(league.userTeam)) {
     const ui = result.teamIds.indexOf(league.userTeam);
     const won = ui === win;
     const opp = T(result.teamIds[1 - ui]);
-    addNews(league, `${T(league.userTeam).name} ${won ? 'beat' : 'fall to'} the ${opp.name} ${result.score[ui]}-${result.score[1 - ui]}${result.decision !== 'REG' ? ' (' + result.decision + ')' : ''}.`);
+    addNews(league, `${T(league.userTeam).city} ${won ? 'beat' : 'lose to'} ${opp.city} ${result.score[ui]}-${result.score[1 - ui]}${result.decision !== 'REG' ? ' (' + result.decision + ')' : ''}.`);
   }
   for (const i of [0, 1]) {
     if (result.goalies[i].ga === 0 && i === win) {
       const tid = result.teamIds[i];
       const g = league.teams[tid].roster.find((p) => p.id === result.goalies[i].pid);
-      if (rand({ seed: league.seed + result.shots[0] }) < 0.5 || tid === league.userTeam) addNews(league, `Shutout: ${g.first} ${g.name} stops all ${result.goalies[i].sa} for the ${T(tid).name}.`);
+      if (rand({ seed: league.seed + result.shots[0] }) < 0.5 || tid === league.userTeam) addNews(league, `Shutout: ${g.first} ${g.name} stops all ${result.goalies[i].sa} for ${T(tid).city}.`);
     }
   }
 }
@@ -413,7 +421,7 @@ export function simDay(league, userResult = null, pre = null) {
       if (s.w[0] >= need || s.w[1] >= need) {
         s.winner = s.w[0] >= need ? s.hi : s.lo;
         const loser = s.winner === s.hi ? s.lo : s.hi;
-        addNews(league, `${TEAMS[s.winner].name} eliminate the ${TEAMS[loser].name}, ${Math.max(...s.w)}-${Math.min(...s.w)}.`);
+        addNews(league, `${TEAMS[s.winner].city} knock out ${TEAMS[loser].city}, ${Math.max(...s.w)}-${Math.min(...s.w)}.`);
       }
     } else {
       league.schedule[league.day].find((x) => x.h === g.h && x.a === g.a).res = line;
@@ -447,7 +455,7 @@ function startPlayoffs(league) {
   }
   league.playoffs = { rounds: [round], cur: 0, champion: null };
   const inn = round.some((s) => s.hi === league.userTeam || s.lo === league.userTeam);
-  addNews(league, inn ? `PLAYOFFS! The ${TEAMS[league.userTeam].name} are in.` : `The ${TEAMS[league.userTeam].name} miss the playoffs.`);
+  addNews(league, inn ? `${TEAMS[league.userTeam].city} clinch a playoff spot!` : `${TEAMS[league.userTeam].city} miss the playoffs.`);
 }
 
 function newSeries(a, b, conf) {
@@ -466,7 +474,7 @@ function advancePlayoffs(league) {
     po.champion = round[0].winner;
     league.phase = 'done';
     league.champions.push({ year: league.year, team: po.champion });
-    addNews(league, `CHAMPIONS! The ${TEAMS[po.champion].name} win the ${league.year} Top Shelf Cup!`);
+    addNews(league, `CHAMPIONS! The ${TEAMS[po.champion].fullName} lift the ${league.year} Silver Cup!`);
     return;
   }
   const next = [];

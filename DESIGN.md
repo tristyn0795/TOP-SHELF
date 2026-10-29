@@ -1,6 +1,12 @@
 # TOP SHELF design notes
 
-Top Shelf follows the structure of *Fourth & Long*: a real-time arcade sport inside a 32-team franchise wrapper, with online play, hosted on Railway. The sport is hockey, and its mechanics come from the retro hockey games people remember, checked against how the NHL actually works.
+TOP SHELF is a real-time arcade hockey game wrapped in a season mode, with online play, hosted on Railway. Its mechanics come from the retro hockey games people remember, checked against how the NHL actually works. Its look is its own: the whole thing presents like a 16-bit console cartridge.
+
+## Identity
+
+- **Console presentation:** an attract-mode demo game runs behind a PRESS START title. Menus are blue bevelled windows with a blinking red cursor, driven by keyboard, gamepad, mouse or touch (`public/js/menu.js`). The page backdrop is a sheet of ice with faint rink lines, and Press Start 2P is used everywhere.
+- **Clubs:** 32 clubs with made-up hometowns (Port Kessel, Saltmarsh, Red Mesa, Skyhaven…), pixel crests drawn at runtime (`public/js/crest.js`), and NHL '94-style ratings bars (offense, defense, goaltending, skating, checking, overall) on the select and versus screens. Each club has one SPECIALTY that changes how it plays.
+- **Season flow:** a vertical season menu whose right-hand window previews the highlighted item. Stats open as pages you flip with left/right. Before each game there's a versus screen. Between periods, an "Around the League" board shows the day's other scores on the jumbotron. The trophy is the Silver Cup.
 
 ## What we took from the classics
 
@@ -10,9 +16,9 @@ Top Shelf follows the structure of *Fourth & Long*: a real-time arcade sport ins
 | **NHL '94** controls | Offense: pass / shoot / speed burst. Defense: switch / check / hook. | Pass·switch / shoot·check / deke·poke, plus a separate sprint so the speed burst is always available. |
 | **NHL '94** goalie play | Goalies square up to the shooter, and cross-crease passes beat them. | Goalies play the angle and track the shot only after a reaction delay based on their rating. A save is decided where the puck reaches the goalie, so a goalie moving across the crease on a one-timer is weaker. |
 | **Blades of Steel / NHL Hitz** | Big hits, crowd noise, arcade swagger. | Body checks are lunges. A strong hit flattens the carrier and shakes the screen. The horn, organ riffs and crowd roar are synthesized. Banners announce ONE-TIMER!, TOP SHELF!, FIVE HOLE!, and the like. |
-| **NES Ice Hockey** | Different player types, readable at a glance. | Archetypes (Sniper, Playmaker, Power Fwd, Grinder, Bruiser, ...) shift each player's ratings, and every team has a perk (Cannon, Brick Wall, Sandpaper, ...). |
+| **NES Ice Hockey** | Different player types, readable at a glance. | Archetypes (Sniper, Playmaker, Power Fwd, Grinder, Bruiser, ...) shift each player's ratings, and every club has a specialty (Cannon, Brick Wall, Sandpaper, ...). |
+| **NHL '94 menus** | Team select with ratings bars, cursor-driven menus, an attract demo. | The whole front end: team select, season menu, versus screen, paged stats, PRESS START. |
 | **NHL '94 options** | Toggle penalties and offside; choose period length. | Penalties and icing can be turned off. Period length is 2/3/5/8/10/20 minutes, and 10- and 20-minute periods run an accelerated clock (2x / 3x). Offside isn't modelled, as in NHL '94's default. |
-| **Fourth & Long** | A franchise you can sim through, a live ticker of other games, team and venue flavour, a pre-game card, online rooms. | Hub tabs (Home, Schedule, Standings, Roster, Leaders, News, Settings). Sim game/week/to playoffs/to champion. A live ticker shows the day's other games scoring as your game clock runs. Pre-game card with the arena and perks. Online rooms on the same Railway service. |
 
 ## NHL rules and structure we follow
 
@@ -49,10 +55,10 @@ Top Shelf follows the structure of *Fourth & Long*: a real-time arcade sport ins
 
 ## Ideas for next steps
 
-1. **Accounts + ranked ladder** (Fourth & Long has `/api/rating` and `/api/leaderboard`): add Postgres on Railway, an Elo rating per player, and a matchmaking queue alongside room codes.
-2. **Online leagues:** friends share one franchise. Move league state server-side and let each owner play their own games.
+1. **Accounts + ranked ladder:** add Postgres on Railway, an Elo rating per player, and a matchmaking queue alongside room codes.
+2. **Online leagues:** friends share one season. Move league state server-side and let each owner play their own games.
 3. **Fights** (Blades of Steel): when the fight setting is on, two big hits in a row trigger a mini-game, and the loser gets 5 minutes.
-4. **Commentary:** short text calls ("He shoots, he scores!"), with optional browser speech synthesis, like Fourth & Long's booth.
+4. **Commentary:** short text calls ("He shoots, he scores!"), with optional browser speech synthesis.
 5. **Delayed penalties and pulling the goalie:** play continues until the penalized team touches the puck, plus an extra attacker late in games.
 6. **Line editor and trades:** drag players between lines, plus a simple trade screen using player overall ratings.
 7. **Offside toggle** for people who want the simulation feel.

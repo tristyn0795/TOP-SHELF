@@ -541,12 +541,38 @@ export class Renderer {
     }
     // banner
     if (snap.ban) this.drawBanner(snap.ban, snap.t);
+    if (opts.board && opts.board.length) this.drawBoard(opts.board);
     if (opts.replay) {
       g.fillStyle = '#000';
       g.fillRect(0, 0, W, 6); g.fillRect(0, this.h - 6, W, 6);
       if (Math.floor(this.t * 2) % 2) drawText(g, 'REPLAY', W / 2, this.h - 22, '#ff3b3b', 2, 'center', '#000');
     }
     if (opts.speed && opts.speed > 1) drawText(g, `${opts.speed}X`, W - 8, this.h - 12, '#ffd400', 1, 'right', '#000');
+  }
+
+  // Between periods: other games around the league, like an arena out-of-town board.
+  drawBoard(rows) {
+    const g = this.g;
+    const cols = rows.length > 8 ? 2 : 1;
+    const per = Math.ceil(rows.length / cols);
+    const w = cols === 2 ? 360 : 180, h = 22 + per * 10;
+    const x0 = Math.round(W / 2 - w / 2), y0 = Math.min(this.h - h - 8, Math.round(this.h / 2 + 22));
+    g.fillStyle = '#000';
+    g.fillRect(x0 - 2, y0 - 2, w + 4, h + 4);
+    g.fillStyle = '#10204e';
+    g.fillRect(x0, y0, w, h);
+    g.fillStyle = '#e8202c';
+    g.fillRect(x0, y0 + 13, w, 1);
+    drawText(g, 'AROUND THE LEAGUE', W / 2, y0 + 4, '#f8e000', 1, 'center');
+    rows.forEach((r, i) => {
+      const cx = x0 + 6 + Math.floor(i / per) * (w / cols);
+      const cy = y0 + 18 + (i % per) * 10;
+      drawText(g, r.a, cx, cy, '#ffffff');
+      drawText(g, String(r.as), cx + 30, cy, '#f8e000');
+      drawText(g, r.h, cx + 44, cy, '#ffffff');
+      drawText(g, String(r.hs), cx + 74, cy, '#f8e000');
+      drawText(g, r.status, cx + 88, cy, '#8fb0ff');
+    });
   }
 
   drawBanner(b, now) {
