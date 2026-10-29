@@ -8,6 +8,15 @@ TOP SHELF is a real-time arcade hockey game wrapped in a season mode, with onlin
 - **Clubs:** 32 clubs with made-up hometowns (Port Kessel, Saltmarsh, Red Mesa, Skyhaven…), pixel crests drawn at runtime (`public/js/crest.js`), and NHL '94-style ratings bars (offense, defense, goaltending, skating, checking, overall) on the select and versus screens. Each club has one SPECIALTY that changes how it plays.
 - **Season flow:** a vertical season menu whose right-hand window previews the highlighted item. Stats open as pages you flip with left/right. Before each game there's a versus screen. Between periods, an "Around the League" board shows the day's other scores on the jumbotron. The trophy is the Silver Cup.
 
+## Broadcast booth
+
+- **The voices:** Mick Embers is a poetic play-by-play man with a big vocabulary who builds to the goal call. Eddie O'Shea is a folksy ex-player analyst ("you gotta get pucks to the net"). They are inspired by classic hockey broadcast pairings but are original characters with original lines.
+- **Script as data:** `shared/booth-lines.js` holds every line (`id`, speaker, category, text, delivery note, tier). A line may contain one team slot at its start or end. The team name is a separate recorded clip, so 64 short recordings (32 cities, 32 nicknames) let calls name any club without recording every combination. Player names appear only on screen because they're generated randomly.
+- **Playback** (`public/js/booth/voice.js`): it uses the studio take in this browser if there is one, then `public/voice/<id>.mp3` (listed by `/voice/index.json`), then browser text-to-speech, then a caption on its own. The crowd ducks under the voices.
+- **Live director** (`director.js`): engine events and snapshot changes become prioritised calls. A goal (100) beats the final horn and period ends (90), which beat penalties (70), big saves and posts (60), big hits (50), shots (20) and filler (5). Small calls expire after 1.5 seconds and minor ones are spaced at least 2.5 seconds apart. A goal interrupts anything, then chains the context line ("Saltmarsh takes the lead!") and Eddie's replay breakdown.
+- **Shows** (`shows.js`): the running order is built from game context (records, streaks, standings rank, series state, ratings, specialties, box score) and played over an animated pixel desk with stat cards.
+- **Studio** (`studio.js`): mic capture through an AudioWorklet, silence trimming, peak normalisation, MP3 encoding with lamejs, IndexedDB storage and zip export with JSZip. Both libraries are loaded from cdnjs only on the studio page.
+
 ## What we took from the classics
 
 | Source | What made it work | How Top Shelf does it |
@@ -58,7 +67,6 @@ TOP SHELF is a real-time arcade hockey game wrapped in a season mode, with onlin
 1. **Accounts + ranked ladder:** add Postgres on Railway, an Elo rating per player, and a matchmaking queue alongside room codes.
 2. **Online leagues:** friends share one season. Move league state server-side and let each owner play their own games.
 3. **Fights** (Blades of Steel): when the fight setting is on, two big hits in a row trigger a mini-game, and the loser gets 5 minutes.
-4. **Commentary:** short text calls ("He shoots, he scores!"), with optional browser speech synthesis.
-5. **Delayed penalties and pulling the goalie:** play continues until the penalized team touches the puck, plus an extra attacker late in games.
-6. **Line editor and trades:** drag players between lines, plus a simple trade screen using player overall ratings.
-7. **Offside toggle** for people who want the simulation feel.
+4. **Delayed penalties and pulling the goalie:** play continues until the penalized team touches the puck, plus an extra attacker late in games.
+5. **Line editor and trades:** drag players between lines, plus a simple trade screen using player overall ratings.
+6. **Offside toggle** for people who want the simulation feel.

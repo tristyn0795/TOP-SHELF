@@ -10,6 +10,10 @@ import { LocalGame, OnlineGame } from './game-client.js';
 import { Nav } from './menu.js';
 import { crest, crestURL } from './crest.js';
 import { drawText } from './render.js';
+import { Voice } from './booth/voice.js';
+import { Director } from './booth/director.js';
+import { Show, pregameSteps, postgameSteps, makePicker } from './booth/shows.js';
+import { createStudio } from './booth/studio.js';
 
 const $app = document.getElementById('app');
 const $ = (sel) => document.querySelector(sel);
@@ -20,7 +24,10 @@ const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 
 const app = {
   league: load('franchise'),
-  prefs: Object.assign({ periodLen: 180, difficulty: 'pro', penalties: true, icing: true, replays: true }, load('prefs', {})),
+  prefs: Object.assign({
+    periodLen: 180, difficulty: 'pro', penalties: true, icing: true, replays: true,
+    commentary: true, pregame: true, postgame: true, tts: true, captions: true,
+  }, load('prefs', {})),
   game: null,
   attract: null,
   paused: false,
@@ -45,6 +52,11 @@ const OPTS = {
   icing: [[true, 'ON'], [false, 'OFF']],
   replays: [[true, 'ON'], [false, 'OFF']],
   muted: [[false, 'ON'], [true, 'OFF']],
+  commentary: [[true, 'ON'], [false, 'OFF']],
+  pregame: [[true, 'ON'], [false, 'OFF']],
+  postgame: [[true, 'ON'], [false, 'OFF']],
+  tts: [[true, 'ON'], [false, 'OFF']],
+  captions: [[true, 'ON'], [false, 'OFF']],
   seasonLength: L.SEASON_LENGTHS.map((x) => [x, `${x} GAMES`]),
   seriesLen: L.SERIES_LENGTHS.map((x) => [x, `BEST OF ${x}`]),
   ctrlA: [['cpu', 'CPU'], ['p1', 'PLAYER 1'], ['p2', 'PLAYER 2']],
@@ -121,6 +133,8 @@ window.addEventListener('keydown', (e) => {
 
 function stopGame() {
   if (app.game) { app.game.destroy(); app.game = null; }
+  if (app.show) { app.show.stop(); app.show = null; }
+  voice.stop();
   app.paused = false;
   input.active = false;
   input.onPause = null;
@@ -140,7 +154,7 @@ function render() {
   $app.innerHTML = out.html;
   out.after?.();
   nav.onFocus = out.onFocus || null;
-  nav.refresh({ back: out.back || null, page: out.page || null, prefer: app.prefer || out.prefer || null });
+  nav.refresh({ back: out.back || null, page: out.page || null, prefer: app.prefer || null, fallback: out.prefer || null });
   app.prefer = null;
 }
 
@@ -652,13 +666,13 @@ function franchiseSpec(watch) {
   sp.onEnd = (res) => {
     L.simDay(lg, res, pre);
     persist();
-    screen(() => postgameScreen(res, sp));
+    afterGame(res, sp);
   };
   return sp;
 }
 
-A.play = () => { const sp = franchiseSpec(false); screen(() => versusScreen(sp)); };
-A.watch = () => { const sp = franchiseSpec(true); screen(() => versusScreen(sp)); };
+A.play = () => beginGame(franchiseSpec(false));
+A.watch = () => beginGame(franchiseSpec(true));
 
 function boardRows(sp, snap) {
   if (!sp.ticker?.length) return null;
@@ -720,8 +734,8 @@ A.faceOff = () => {
     cfg: { periodLen: p.periodLen, ot: 'reg', penalties: p.penalties, icing: p.icing, difficulty: p.difficulty },
     label: 'EXHIBITION',
   };
-  sp.onEnd = (res) => screen(() => postgameScreen(res, sp));
-  screen(() => versusScreen(sp));
+  sp.onEnd = (res) => afterGame(res, sp);
+  beginGame(sp);
 };
 
 // ---------------------------------------------------------------- versus / pregame
@@ -816,6 +830,7 @@ function launch(sp) {
     homeIdx: sp.homeIdx, cfg: sp.cfg, humans: sp.humans, replays: app.prefs.replays,
     onEnd: (res) => sp.onEnd(res),
     board: (snap) => boardRows(sp, snap),
+    director: app.prefs.commentary !== false ? new Director({ voice, teams: sp.teams, playoff: sp.cfg.ot === 'playoff' }) : null,
   });
   app.game = g;
   input.onPause = () => togglePause();
@@ -1074,6 +1089,7 @@ function launchOnline(m) {
   const g = new OnlineGame({
     canvas: $('#cv'), input, audio, send: netSend, side: m.side,
     teamDefs: m.teams.map((id) => T(id)), homeIdx: m.homeIdx,
+    director: app.prefs.commentary !== false ? new Director({ voice, teams: m.teams, playoff: false }) : null,
   });
   app.game = g;
   input.onPause = () => togglePause();
@@ -1141,6 +1157,14 @@ function optionsScreen() {
           ${opt('PENALTIES', 'prefs', 'penalties', p.penalties)}
           ${opt('ICING', 'prefs', 'icing', p.icing)}
           <p class="note">These are the defaults for exhibitions and new seasons.</p>`)}
+        ${win('BROADCAST', `
+          ${opt('COMMENTARY', 'prefs', 'commentary', p.commentary)}
+          ${opt('PRE-GAME SHOW', 'prefs', 'pregame', p.pregame)}
+          ${opt('POST-GAME SHOW', 'prefs', 'postgame', p.postgame)}
+          ${opt('STAND-IN VOICE', 'prefs', 'tts', p.tts)}
+          ${opt('CAPTIONS', 'prefs', 'captions', p.captions)}
+          <p class="note">MICK EMBERS and EDDIE O'SHEA call the action. Lines you haven't recorded yet are read by your browser's built-in voice.</p>
+          <div class="btnrow">${btn('studio', 'COMMENTARY STUDIO ▶', '', 'red')}</div>`)}
         ${lg ? win(`SEASON · ${esc(T(lg.userTeam).name).toUpperCase()}`, `
           ${opt('PERIOD LENGTH', 'league', 'periodLen', lg.settings.periodLen)}
           ${opt('DIFFICULTY', 'league', 'difficulty', lg.settings.difficulty)}
@@ -1161,5 +1185,130 @@ A.deleteLeague = () => {
   A.home();
 };
 
+// ---------------------------------------------------------------- broadcast shows
+
+const voice = new Voice(audio, app.prefs);
+voice.init();
+window.__topshelf = { voice }; // handy for debugging the booth from the console
+const picker = makePicker();
+
+function beginGame(sp) {
+  if (app.prefs.pregame !== false && sp.mode !== 'online') screen(() => showScreen('pre', sp));
+  else screen(() => versusScreen(sp));
+}
+
+function afterGame(res, sp) {
+  if (app.prefs.postgame !== false && sp.mode !== 'online') screen(() => showScreen('post', sp, res));
+  else screen(() => postgameScreen(res, sp));
+}
+
+function playersToWatch(sp, ids, season) {
+  const out = {};
+  for (const id of ids) {
+    const t = sp.rosters[id];
+    const pts = (p) => p.s.g + p.s.a;
+    const top = t.roster.filter((p) => p.pos !== 'G')
+      .sort((a, b) => (season ? pts(b) - pts(a) : 0) || L.ovr(b) - L.ovr(a)).slice(0, 2)
+      .map((p) => ({ num: p.num, name: `${p.first[0]}. ${p.name}`, line: season && p.s.gp ? `${p.s.g}G ${p.s.a}A` : `OVR ${L.ovr(p)}` }));
+    const g = t.roster.find((p) => p.id === t.lines.G[0]);
+    const gl = season && g.s.sa ? `${pct(g.s.sa - g.s.ga, g.s.sa)} SV%` : `OVR ${L.ovr(g)}`;
+    out[id] = { top, goalie: { num: g.num, name: `${g.first[0]}. ${g.name}`, line: gl } };
+  }
+  return out;
+}
+
+function divRank(lg, id) {
+  const t = T(id);
+  return L.standings(lg, (x) => x.conf === t.conf && x.div === t.div).findIndex((x) => x.id === id) + 1;
+}
+
+function preContext(sp) {
+  const home = sp.teams[sp.homeIdx], away = sp.teams[1 - sp.homeIdx];
+  const lg = isFranchise(sp) ? app.league : null;
+  const c = {
+    home, away, label: sp.label, exhibition: !lg, playoff: sp.cfg.ot === 'playoff',
+    ratings: { [home]: L.teamRatings(sp.rosters[home]), [away]: L.teamRatings(sp.rosters[away]) },
+    players: playersToWatch(sp, [away, home], !!lg),
+    stakes: 'Exhibition hockey: bragging rights only.',
+  };
+  if (lg) {
+    c.recs = { [home]: lg.teams[home].rec, [away]: lg.teams[away].rec };
+    c.divRank = { [home]: divRank(lg, home), [away]: divRank(lg, away) };
+    c.gameNo = lg.day + 1;
+    c.seasonLen = lg.schedule.length;
+    c.stakes = `${sp.label}. ${T(away).city} ${rec(c.recs[away])} at ${T(home).city} ${rec(c.recs[home])}.`;
+    if (c.playoff) {
+      const s = L.userGameToday(lg).series;
+      c.series = { hi: s.hi, lo: s.lo, w: s.w.slice(), games: s.games.length, len: lg.settings.seriesLen, final: lg.playoffs.rounds[lg.playoffs.cur].length === 1 };
+      c.stakes = sp.label;
+    }
+  }
+  return c;
+}
+
+function postContext(sp, res) {
+  const ids = res.teamIds;
+  const wi = res.score[0] > res.score[1] ? 0 : 1;
+  const winner = ids[wi], loser = ids[1 - wi];
+  const lg = isFranchise(sp) ? app.league : null;
+  const per2 = (i) => (res.perScore[i][0] || 0) + (res.perScore[i][1] || 0);
+  const rw = L.teamRatings(sp.rosters[winner]), rl = L.teamRatings(sp.rosters[loser]);
+  const c = {
+    ids, score: res.score, winner, loser, decision: res.decision, res, shots: res.shots, label: sp.label,
+    stars: threeStars(res, sp).map((x) => ({ tid: x.tid, name: `${x.p.first[0]}. ${x.p.name}`, line: x.line })),
+    exhibition: !lg, playoff: sp.cfg.ot === 'playoff',
+    comeback: per2(wi) < per2(1 - wi), upset: rl.all - rw.all >= 3,
+  };
+  if (lg) {
+    const st = lg.teams[winner].rec.streak || '';
+    c.winnerStreak = st[0] === 'W' ? parseInt(st.slice(1), 10) || 0 : 0;
+    if (c.playoff && lg.playoffs) {
+      for (const round of [...lg.playoffs.rounds].reverse()) {
+        const s = round.find((x) => (x.hi === winner && x.lo === loser) || (x.hi === loser && x.lo === winner));
+        if (s) { c.series = s; break; }
+      }
+      c.champion = lg.phase === 'done' && lg.playoffs.champion === winner;
+    }
+    c.around = (sp.ticker || []).map((t) => ({ a: t.a, h: t.h, as: t.res.score[1], hs: t.res.score[0], dec: t.res.decision }));
+  }
+  return c;
+}
+
+function showScreen(kind, sp, res) {
+  const pre = kind === 'pre';
+  const c = pre ? preContext(sp) : postContext(sp, res);
+  const steps = pre ? pregameSteps(c) : postgameSteps(c);
+  const away = sp.teams[1 - sp.homeIdx], home = sp.teams[sp.homeIdx];
+  const done = () => { app.show = null; screen(pre ? () => versusScreen(sp) : () => postgameScreen(res, sp)); };
+  return {
+    cls: 'scr-show',
+    html: `
+      <header class="topbar"><h1>${pre ? 'PRE-GAME SHOW' : 'POST-GAME SHOW'}</h1><span>${esc(sp.label)} · ${T(away).abbr} AT ${T(home).abbr}</span></header>
+      <div class="show">
+        <div class="show-stage"><canvas id="desk"></canvas><div class="show-progress"><i id="showProg"></i></div></div>
+        <div id="showCard" class="show-cardwrap"></div>
+      </div>
+      <div class="btnrow">${btn('showSkipLine', 'NEXT LINE ▶', '', 'default')}${btn('showSkip', pre ? 'SKIP TO PUCK DROP' : 'SKIP TO BOX SCORE', '', 'red')}</div>`,
+    after: () => {
+      app.show?.stop();
+      const sh = new Show({ voice, pick: picker, steps, teams: [away, home], title: pre ? 'PRE-GAME' : 'POST-GAME', onDone: done });
+      app.show = sh;
+      sh.mount($('#desk'), $('#showCard'), $('#showProg'));
+    },
+    back: () => app.show?.finish(),
+  };
+}
+const studio = createStudio({
+  A, render, win, btn, mi, esc, voice, audio,
+  back: () => screen(optionsScreen),
+  isOpen: () => app.cur === studioScreen,
+});
+function studioScreen() { return studio.screen(); }
+A.studio = () => { audio.unlock(); voice.refreshLocal().then(() => screen(studioScreen)); };
+
+A.showSkipLine = () => app.show?.skipLine();
+A.showSkip = () => app.show?.finish();
+
 // ---------------------------------------------------------------- boot
-screen(titleScreen);
+if (location.hash === '#studio') screen(studioScreen);
+else screen(titleScreen);

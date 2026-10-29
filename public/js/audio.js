@@ -18,6 +18,12 @@ export class Audio {
     this.master = this.ctx.createGain();
     this.master.gain.value = this.muted ? 0 : 0.6;
     this.master.connect(this.ctx.destination);
+    // Crowd runs through a duck stage so the booth can be heard; voices get their own bus.
+    this.duckNode = this.ctx.createGain();
+    this.duckNode.connect(this.master);
+    this.voiceBus = this.ctx.createGain();
+    this.voiceBus.gain.value = 1.5;
+    this.voiceBus.connect(this.master);
     const len = this.ctx.sampleRate * 2;
     this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = this.noise.getChannelData(0);
@@ -73,13 +79,18 @@ export class Audio {
       f.type = 'bandpass'; f.frequency.value = 520; f.Q.value = 0.6;
       this.crowdGain = this.ctx.createGain();
       this.crowdGain.gain.value = 0.03;
-      s.connect(f); f.connect(this.crowdGain); this.crowdGain.connect(this.master);
+      s.connect(f); f.connect(this.crowdGain); this.crowdGain.connect(this.duckNode);
       s.start();
       this.crowdSrc = s;
     } else if (!on && this.crowdSrc) {
       this.crowdSrc.stop();
       this.crowdSrc = null;
     }
+  }
+
+  duck(on) {
+    if (!this.duckNode) return;
+    this.duckNode.gain.setTargetAtTime(on ? 0.3 : 1, this.ctx.currentTime, 0.08);
   }
 
   roar(level = 0.2, dur = 3) {

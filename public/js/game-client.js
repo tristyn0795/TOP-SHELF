@@ -51,8 +51,11 @@ export class LocalGame {
       step(this.s, inputs, DT);
       this.acc -= DT;
       n++;
-      this.handleEvents(drainEvents(this.s));
-      this.buf.push(snapshot(this.s));
+      const evs = drainEvents(this.s);
+      this.handleEvents(evs);
+      const sn = snapshot(this.s);
+      this.buf.push(sn);
+      if (evs.length) this.o.director?.onEvents(evs, sn);
       if (this.buf.length > 330) this.buf.shift();
       if (this.s.phase === 'final' && !this.done) {
         this.done = true;
@@ -70,6 +73,7 @@ export class LocalGame {
     const snap = this.buf[this.buf.length - 1] || snapshot(this.s);
     const board = snap.ph === 'intermission' && this.o.board ? this.o.board(snap) : null;
     this.r.draw(snap, dt, { speed: this.speed, board });
+    this.o.director?.onFrame(snap, { speed: this.speed });
     this.o.onTick?.(snap);
   }
 
@@ -100,6 +104,7 @@ export class LocalGame {
   // Finish the game with the CPU in charge, in chunks so the page stays responsive.
   simToEnd(done) {
     this.paused = true;
+    this.o.director?.stop();
     this.s.humans = [];
     const chunk = () => {
       if (this.destroyed) return;
@@ -115,6 +120,7 @@ export class LocalGame {
     this.destroyed = true;
     cancelAnimationFrame(this.raf);
     clearTimeout(this.endTimer);
+    this.o.director?.stop();
     this.o.audio.crowd(false);
     this.o.input.onAny = null;
   }
@@ -142,6 +148,7 @@ export class OnlineGame {
     this.snaps.push({ at: performance.now(), s });
     if (this.snaps.length > 40) this.snaps.shift();
     if (ev && ev.length) {
+      this.o.director?.onEvents(ev, s);
       this.o.audio.events(ev);
       if (ev.some((e) => e.type === 'goal')) this.r.setExcited(3);
     }
@@ -169,12 +176,14 @@ export class OnlineGame {
     const t = span > 0 ? Math.max(0, Math.min(1, (rt - a.at) / span)) : 1;
     const snap = lerpSnap(a.s, b.s, t);
     this.r.draw(snap, dt, {});
+    this.o.director?.onFrame(snap);
     this.o.onTick?.(snap);
   }
 
   destroy() {
     this.destroyed = true;
     cancelAnimationFrame(this.raf);
+    this.o.director?.stop();
     this.o.audio.crowd(false);
   }
 }

@@ -9,6 +9,25 @@ Every screen plays like a cartridge from 1994: an attract-mode demo behind PRESS
 - **Real rules:** three periods, 3-on-3 OT then a playable shootout in the regular season, sudden-death 5-on-5 OT in the playoffs, 2-minute minors with power plays, and icing. There is no offside, as in the classics.
 - No build step, no database, no external assets. Sound is synthesized in the browser.
 
+## The broadcast booth
+
+Every game can be called by **Mick Embers** (play-by-play) and **Eddie O'Shea** (analyst):
+
+- **Pre-game show:** the two hosts at the desk, with matchup, stakes, form guide, tale of the tape, keys to the game, players to watch and Eddie's pick.
+- **Live commentary:** goal calls (first goal, tying, go-ahead, one-timer, top shelf…), big saves, hits, penalties, power plays, late-game tension, overtime and the shootout. Eddie breaks down every goal during the replay.
+- **Post-game show:** the result, three stars, Eddie's analysis, what it means for the standings or the series, scores from around the league, and the sign-off.
+
+All 351 lines live in [`shared/booth-lines.js`](shared/booth-lines.js). Each line's id is its file name (`public/voice/<id>.mp3`). Lines nobody has recorded yet show as captions and are read by the browser's built-in voice as a stand-in. Every piece can be switched off in OPTIONS → BROADCAST.
+
+### Recording the voices
+
+1. Open **OPTIONS → COMMENTARY STUDIO** (or go to `/#studio`).
+2. Pick a section and a category, read the line, and press **R** to record and **R** to stop. **P** plays the take back; **C** plays it in context with a sample team name spliced in; **N** moves to the next line. Use the SHOW filter to work through ESSENTIALS first (206 lines, including the 64 team names).
+3. Takes are trimmed, levelled and saved as MP3s in your browser, and the game uses them immediately.
+4. When you're ready, press **DOWNLOAD ALL**. Upload the MP3s from the zip's `voice` folder into `public/voice/` in this repo (on GitHub: Add file → Upload files). Railway redeploys, and everyone hears your recordings.
+
+For lines with a team in them (`{team} strikes first!`), record only the words. The team name is its own clip, recorded once per team in the TEAM NAMES section.
+
 ## Run it locally
 
 ```bash
@@ -60,6 +79,7 @@ shared/             Isomorphic game code, loaded by both the browser and the ser
   engine.js         The game: skating physics, puck, goalies, AI, rules, penalties, shootout
   league.js         Seasons: rosters, schedule, quick-sim, standings, playoffs, leaders, team ratings
   teams.js          The 32 fictional clubs (made-up hometowns, colours, arenas, specialties)
+  booth-lines.js    The commentary script: every line, who says it, when it plays, delivery notes
   rng.js, names.js
 public/
   js/render.js      400px-wide pixel canvas, NHL '94-style vertical scroll, bitmap font
@@ -67,6 +87,8 @@ public/
   js/main.js        Console-style screens: attract title, team select, season menu, versus, online lobby
   js/menu.js        Cursor navigation for keyboard, gamepad, mouse and touch
   js/crest.js       Pixel-art club crests
+  js/booth/         Commentary: voice playback + captions, live director, pre/post-game shows, recording studio
+  voice/            Recorded commentary clips (<line id>.mp3)
   js/input.js       Keyboard, gamepads, touch
   js/audio.js       Synthesized arena sounds: horn, organ, crowd, posts
 test/
@@ -84,6 +106,10 @@ npm test
 node test/human-bot.mjs
 ```
 
-`npm test` plays CPU-vs-CPU games through the real engine and prints per-game averages (goals, shots, save percentage, penalties, one-timers). It asserts that the puck and players never leave the rink, that every game ends, and that a full season reaches a champion with consistent standings.
+```bash
+node test/booth.mjs
+```
+
+`node test/booth.mjs` checks the commentary script (ids, team slots, every category the game asks for). `npm test` plays CPU-vs-CPU games through the real engine and prints per-game averages (goals, shots, save percentage, penalties, one-timers). It asserts that the puck and players never leave the rink, that every game ends, and that a full season reaches a champion with consistent standings.
 
 See [DESIGN.md](DESIGN.md) for the research behind the mechanics and ideas for what to build next.

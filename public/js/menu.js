@@ -41,13 +41,15 @@ export class Nav {
   }
 
   // Call after every render. Keeps the cursor on the "same" item if it still exists.
-  refresh({ back = null, page = null, prefer = null } = {}) {
+  // prefer: selector to force; fallback: selector used only when the old cursor item is gone.
+  refresh({ back = null, page = null, prefer = null, fallback = null } = {}) {
     this.back = back;
     this.page = page;
     const items = this.items();
     let el = null;
     if (prefer) el = items.find((x) => x.matches(prefer));
     if (!el && this.key) el = items.find((x) => Nav.keyOf(x) === this.key);
+    if (!el && fallback) el = items.find((x) => x.matches(fallback));
     if (!el) el = items.find((x) => x.classList.contains('default') || x.dataset.default) || items[0];
     if (el) this.focus(el, false);
     else this.cur = null;
