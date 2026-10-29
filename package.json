@@ -1,0 +1,20 @@
+{
+  "name": "top-shelf",
+  "version": "0.1.0",
+  "description": "Retro arcade hockey in the browser",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/headless.mjs"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "express": "^4.22.3",
+    "ws": "^8.22.0"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "private": true
+}
