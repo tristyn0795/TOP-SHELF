@@ -413,6 +413,25 @@ export function cpuMaintain(lg) {
   }
 }
 
+// Fill a club's roster to the minimums: best affordable free agents first, then call-ups.
+export function autoFill(lg, tid) {
+  const t = lg.teams[tid];
+  const signed = [];
+  const need = () => {
+    const c = counts(t.roster);
+    const k = ['G', 'D', 'F'].find((g) => c[g] < MIN_POS[g]);
+    return k || (t.roster.length < ROSTER_MIN ? 'F' : null);
+  };
+  for (let guard = 0, k = need(); k && guard < 30; guard++, k = need()) {
+    const room = capRoom(lg, t);
+    const fa = lg.freeAgents.filter((p) => group(p) === k && p.ask.sal <= room).sort((a, b) => ovr(b) - ovr(a))[0];
+    if (fa) { signFreeAgent(lg, tid, fa.id); signed.push(`${fa.first} ${fa.name} (${fa.pos})`); }
+    else { callUp(lg, t, k); const p = t.roster[t.roster.length - 1]; signed.push(`${p.first} ${p.name} (${p.pos}, call-up)`); }
+  }
+  repairLines(t);
+  return signed;
+}
+
 // Nobody affordable in free agency: promote a minimum-salary player from the minors.
 function callUp(lg, t, k) {
   const st = { seed: lg.seed + t.roster.length * 17 + t.id };

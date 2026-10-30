@@ -51,6 +51,7 @@ export function createGM(h) {
     return {
       html: `
         <header class="topbar"><h1>MANAGE TEAM</h1><span>${h.esc(T(l.userTeam).fullName).toUpperCase()} · GENERAL MANAGER</span></header>
+        ${note()}
         <div class="cols">
           ${h.win('FRONT OFFICE', `<div class="menu-list">${items.join('')}</div>`)}
           ${h.win('CAP SHEET', `${capBar()}
@@ -200,15 +201,25 @@ export function createGM(h) {
       html: `
         <header class="topbar"><h1>FREE AGENTS</h1><span>${gm.money(gm.capRoom(l, team))} CAP ROOM · ${team.roster.length} ON ROSTER</span></header>
         ${note()}
+        ${needs()}
         ${h.win('', `${capBar()}<button class="opt" data-act="gmFAFilter" data-d="1" data-left="gmFAFilterBack" data-right="gmFAFilter"><span class="ol">SHOW</span><span class="ov"><i>◀</i> ${POS_GROUPS[fi][1]} <i>▶</i></span></button>`)}
         ${h.win('AVAILABLE', list.length ? `<div class="scroll"><table class="tbl">
           <tr><th class="l">NAME</th><th>POS</th><th>AGE</th><th>OVR</th><th>POT</th><th>ASKING</th><th></th></tr>
           ${list.slice(0, 40).map((p) => `<tr><td class="l">${h.esc(p.first)} ${h.esc(p.name).toUpperCase()}</td><td>${p.pos}</td><td>${p.age}</td><td><b>${L.ovr(p)}</b></td><td>${gm.potGrade(p)}</td><td>${gm.money(p.ask.sal)} × ${p.ask.yrs}</td>
             <td>${h.btn('gmSign', 'SIGN', `data-id="${p.id}"`, 'mini red')} ${h.btn('gmLowball', 'OFFER 85%', `data-id="${p.id}"`, 'mini')}</td></tr>`).join('')}
         </table></div>` : '<p class="note">Nobody available at that position.</p>')}
-        <div class="btnrow">${h.btn('gmHubOrSeason', 'BACK', '', 'default')}</div>`,
+        <div class="btnrow">${h.btn('gmFill', 'FILL ROSTER', '', 'red')}${l.phase === 'offseason' ? h.btn('gmNextSeason', 'START NEXT SEASON ▶', '', 'red') : ''}${h.btn('gmHubOrSeason', 'BACK', '', 'default')}</div>`,
       back: () => A.gmHubOrSeason(),
     };
+  }
+
+  // What the user's roster is missing (shown in free agency).
+  function needs() {
+    const team = me(), c = gm.counts(team.roster);
+    const miss = ['G', 'D', 'F'].filter((k) => c[k] < gm.MIN_POS[k]).map((k) => `${gm.MIN_POS[k] - c[k]} ${{ G: 'GOALIE', D: 'DEFENSEMAN', F: 'FORWARD' }[k]}${gm.MIN_POS[k] - c[k] > 1 ? 'S' : ''}`);
+    if (team.roster.length < gm.ROSTER_MIN) miss.push(`${gm.ROSTER_MIN - team.roster.length} MORE PLAYERS IN TOTAL`);
+    const over = team.roster.length > gm.ROSTER_MAX && lg().phase === 'offseason' ? `<p class="note">You have ${team.roster.length} players. Release down to ${gm.ROSTER_MAX} before the season starts.</p>` : '';
+    return miss.length || over ? h.win('ROSTER NEEDS', `${miss.length ? `<p class="bad">YOU NEED: ${miss.join(' · ')}</p><p class="note">Sign players below, or press FILL ROSTER to sign the best affordable fits (and call up minimum-salary players from the minors if needed).</p>` : ''}${over}`) : '';
   }
 
   // ------------------------------------------------------------ off-season
@@ -220,7 +231,7 @@ export function createGM(h) {
       html: `
         <header class="topbar"><h1>RE-SIGN PLAYERS</h1><span>OFF-SEASON STEP 1 OF 3</span></header>
         ${note()}
-        ${h.win('CAP SHEET', capBar())}
+        ${h.win('CAP SHEET', `${capBar()}<p class="note">If you let everyone listed below go, you'll have ${team.roster.length - rows.length} players under contract. You need at least ${gm.ROSTER_MIN} (2 G, 6 D, 12 F) to start the season. Free agency and FILL ROSTER come after the draft.</p>`)}
         ${h.win('EXPIRING CONTRACTS', rows.length ? `<div class="scroll"><table class="tbl">
           <tr><th class="l">NAME</th><th>POS</th><th>AGE</th><th>OVR</th><th>POT</th><th>OLD DEAL</th><th>ASKING</th><th></th></tr>
           ${rows.map((p) => `<tr><td class="l">${h.esc(p.first)} ${h.esc(p.name).toUpperCase()}</td><td>${p.pos}</td><td>${p.age}</td><td><b>${L.ovr(p)}</b></td><td>${gm.potGrade(p)}</td><td>${gm.money(p.contract.sal)}</td><td>${gm.money(p.ask.sal)} × ${p.ask.yrs}</td>
@@ -304,6 +315,7 @@ export function createGM(h) {
     gmFAFilter: () => { st.faFilter = POS_GROUPS[(POS_GROUPS.findIndex((x) => x[0] === st.faFilter) + 1) % 4][0]; h.render(); },
     gmFAFilterBack: () => { st.faFilter = POS_GROUPS[(POS_GROUPS.findIndex((x) => x[0] === st.faFilter) + 3) % 4][0]; h.render(); },
     gmSign: (d) => say(gm.signFreeAgent(lg(), lg().userTeam, d.id).reason),
+    gmFill: () => { const s2 = gm.autoFill(lg(), lg().userTeam); say(s2.length ? `Signed: ${s2.join(', ')}.` : 'Your roster already meets the minimums.'); },
     gmLowball: (d) => {
       const p = lg().freeAgents.find((x) => x.id === d.id);
       if (p) say(gm.signFreeAgent(lg(), lg().userTeam, d.id, Math.round(p.ask.sal * 85) / 100).reason);
@@ -321,7 +333,7 @@ export function createGM(h) {
     gmNextSeason: () => {
       const r = L.finishOffseason(lg());
       h.persist();
-      if (!r.ok) { st.msg = r.reason; h.screen(hubScreen); return; }
+      if (!r.ok) { st.msg = r.reason; h.screen(faScreen); return; }
       st.msg = '';
       h.screen(h.seasonScreen);
     },

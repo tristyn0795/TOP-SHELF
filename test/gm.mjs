@@ -122,15 +122,13 @@ for (let season = 0; season < 2; season++) {
   gm.openFreeAgency(lg);
   // make our roster legal: trim to 26, keep position minimums
   while (U.roster.length > gm.ROSTER_MAX) gm.releasePlayer(lg, 0, worst(U).id);
-  for (const k of ['G', 'D', 'F']) while (gm.counts(U.roster)[k] < gm.MIN_POS[k]) {
-    const f = lg.freeAgents.filter((p) => gm.group(p) === k).sort((a, b) => a.ask.sal - b.ask.sal)[0];
-    gm.signFreeAgent(lg, 0, f.id);
-  }
+  const filled = gm.autoFill(lg, 0);
+  assert.deepEqual(gm.rosterProblems(U.roster, gm.OFFSEASON_MAX).filter((x) => !/max/.test(x)), [], 'autoFill meets the minimums');
   while (gm.payroll(U) > lg.cap) gm.releasePlayer(lg, 0, U.roster.slice().sort((a, b) => b.contract.sal - a.contract.sal).find((p) => gm.counts(U.roster)[gm.group(p)] > gm.MIN_POS[gm.group(p)]).id);
   const res = L.finishOffseason(lg);
   assert.equal(res.ok, true, res.reason);
   legal(lg, `start of season ${season + 2}`);
-  ok(`season ${season + 1} → off-season (${off.order.length} picks, ${injuries} injury reports) → ${lg.year} season, FA pool ${lg.freeAgents.length}, picks ${lg.picks.length}`);
+  ok(`season ${season + 1} → off-season (${off.order.length} picks, ${injuries} injury reports, filled ${filled.length}) → ${lg.year} season, FA pool ${lg.freeAgents.length}, picks ${lg.picks.length}`);
 }
 const trades = lg.news.filter((n) => /^TRADE:/.test(n.text)).length;
 ok(`CPU trades in the news: ${trades}`);
