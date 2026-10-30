@@ -216,58 +216,103 @@ export class Input {
   }
 }
 
-// On-screen joystick + buttons for touch devices.
+// On-screen controls for touch devices: a floating thumbstick (it centres wherever your
+// thumb lands in the left zone) and an arc of action buttons. Zones are positioned by
+// place(), which the game calls with a layout for the current screen / fold state.
+export const isTouchDevice = () => 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
+
 export function mountTouch(root, input) {
-  if (!('ontouchstart' in window) && !(navigator.maxTouchPoints > 0)) return null;
+  if (!isTouchDevice()) return null;
   const el = document.createElement('div');
   el.className = 'touch';
   el.innerHTML = `
-    <div class="stick"><div class="knob"></div></div>
-    <div class="tbtns">
+    <div class="tzone tstick"><div class="tbase"><div class="knob"></div></div><span class="thint">MOVE</span></div>
+    <div class="tzone tbtnzone"><div class="tbtns">
       <button data-a="sprint">SPRINT</button>
-      <button data-a="deke">DEKE<br><small>POKE</small></button>
-      <button data-a="pass">PASS<br><small>SWITCH</small></button>
-      <button data-a="shoot" class="big">SHOOT<br><small>CHECK</small></button>
-    </div>
-    <button class="tpause" data-a="pause">II</button>`;
+      <button data-a="deke">DEKE<small>POKE</small></button>
+      <button data-a="pass">PASS<small>SWITCH</small></button>
+      <button data-a="shoot" class="big">SHOOT<small>CHECK</small></button>
+    </div></div>
+    <div class="tsys">
+      <button data-a="pause" aria-label="Pause">II</button>
+      ${document.fullscreenEnabled ? '<button data-a="fs" aria-label="Full screen">FULL</button>' : ''}
+    </div>`;
   root.appendChild(el);
-  const stick = el.querySelector('.stick'), knob = el.querySelector('.knob');
-  let sid = null, c0 = null;
-  stick.addEventListener('touchstart', (e) => {
-    const t = e.changedTouches[0];
-    sid = t.identifier;
-    const r = stick.getBoundingClientRect();
-    c0 = { x: r.left + r.width / 2, y: r.top + r.height / 2, R: r.width / 2 };
-    move(t);
-    e.preventDefault();
-  }, { passive: false });
+  const zone = el.querySelector('.tstick'), base = el.querySelector('.tbase'), knob = el.querySelector('.knob');
+  const btnZone = el.querySelector('.tbtnzone'), sys = el.querySelector('.tsys');
+  let sid = null, o = null, R = 56;
+
+  const rest = () => {
+    sid = null;
+    base.classList.remove('on');
+    base.style.left = '50%';
+    base.style.top = '60%';
+    knob.style.transform = '';
+    input.touch.mx = 0;
+    input.touch.my = 0;
+  };
   const move = (t) => {
-    let dx = (t.clientX - c0.x) / c0.R, dy = (t.clientY - c0.y) / c0.R;
+    let dx = (t.clientX - o.x) / R, dy = (t.clientY - o.y) / R;
     const l = Math.hypot(dx, dy);
     if (l > 1) { dx /= l; dy /= l; }
-    input.touch.mx = Math.abs(dx) < 0.2 ? 0 : dx;
-    input.touch.my = Math.abs(dy) < 0.2 ? 0 : dy;
-    knob.style.transform = `translate(${dx * 40}px, ${dy * 40}px)`;
+    const dead = l < 0.18;
+    input.touch.mx = dead ? 0 : dx;
+    input.touch.my = dead ? 0 : dy;
+    knob.style.transform = `translate(${dx * R}px, ${dy * R}px)`;
   };
-  stick.addEventListener('touchmove', (e) => {
-    for (const t of e.changedTouches) if (t.identifier === sid) move(t);
+  zone.addEventListener('touchstart', (e) => {
     e.preventDefault();
+    if (sid !== null) return;
+    const t = e.changedTouches[0];
+    sid = t.identifier;
+    const zr = zone.getBoundingClientRect();
+    R = clampN(Math.min(zr.width, zr.height) * 0.28, 38, 70);
+    o = { x: clampN(t.clientX, zr.left + R, zr.right - R), y: clampN(t.clientY, zr.top + R, zr.bottom - R) };
+    base.style.setProperty('--r', `${R}px`);
+    base.style.left = `${o.x - zr.left}px`;
+    base.style.top = `${o.y - zr.top}px`;
+    base.classList.add('on');
+    move(t);
   }, { passive: false });
-  const end = (e) => {
-    for (const t of e.changedTouches) if (t.identifier === sid) {
-      sid = null; input.touch.mx = 0; input.touch.my = 0; knob.style.transform = '';
-    }
-  };
-  stick.addEventListener('touchend', end);
-  stick.addEventListener('touchcancel', end);
+  zone.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    for (const t of e.changedTouches) if (t.identifier === sid) move(t);
+  }, { passive: false });
+  const end = (e) => { for (const t of e.changedTouches) if (t.identifier === sid) rest(); };
+  zone.addEventListener('touchend', end);
+  zone.addEventListener('touchcancel', end);
+
   el.querySelectorAll('button[data-a]').forEach((b) => {
     const a = b.dataset.a;
     b.addEventListener('touchstart', (e) => {
       e.preventDefault();
+      b.classList.add('down');
       if (a === 'pause') input.onPause?.();
+      else if (a === 'fs') input.onFullscreen?.();
       else input.pressTouch(a);
     }, { passive: false });
-    b.addEventListener('touchend', (e) => { e.preventDefault(); if (a !== 'pause') input.releaseTouch(a); }, { passive: false });
+    const up = (e) => {
+      e.preventDefault();
+      b.classList.remove('down');
+      if (a !== 'pause' && a !== 'fs') input.releaseTouch(a);
+    };
+    b.addEventListener('touchend', up, { passive: false });
+    b.addEventListener('touchcancel', up, { passive: false });
   });
+
+  // g: { mode, stick:{x,y,w,h}, btns:{x,y,w,h}, sys:{x,y}, b: button size px }
+  el.place = (g) => {
+    const set = (n, r) => Object.assign(n.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
+    set(zone, g.stick);
+    set(btnZone, g.btns);
+    el.style.setProperty('--b', `${g.b}px`);
+    Object.assign(sys.style, { left: `${g.sys.x}px`, top: `${g.sys.y}px` });
+    el.dataset.mode = g.mode;
+    R = clampN(Math.min(g.stick.w, g.stick.h) * 0.28, 38, 70);
+    base.style.setProperty('--r', `${R}px`);
+    rest();
+  };
+  rest();
   return el;
 }

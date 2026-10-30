@@ -20,6 +20,23 @@ TOP SHELF is a real-time arcade hockey game wrapped in a season mode, with onlin
 
 Bindings live in `public/js/input.js` (saved in localStorage): two keys per action for single player and for each couch player, plus gamepad buttons. Binding a key moves it off any other action in that layout. Menus always use arrows/Enter/Esc and Esc always pauses, so a bad binding can't lock anyone out.
 
+## Phones and foldables
+
+- **Game layout** (`fit()` in `public/js/main.js`): it measures the real screen (including safe areas and fold segments) and picks one of four layouts.
+  - `side`: a landscape screen with at least 160 px beside the rink gets the stick on the left and the buttons on the right.
+  - `bottom`: portrait screens, the Fold cover screen and the Fold inner screen get a control band under the rink. It takes 34% of the height (150–210 px), and narrow screens give it whatever height the rink can't use.
+  - `split-v` / `split-h`: when the browser reports two viewport segments, the rink takes one half of the fold and the controls take the other, so nothing sits on the hinge.
+  - The rink's internal height follows the space it gets (300–640 px tall at 400 px wide). Captions sit at the rink's edge, never over the buttons. The layout is recalculated on resize, rotation, keyboard and fold changes.
+- **Touch controls** (`mountTouch` in `public/js/input.js`): a floating stick in the whole left zone and a thumb arc of 52–84 px buttons. They support multi-touch, and a cancelled touch releases everything.
+- **Menus:** on touch screens every target is at least 44 px tall. Under 480 px wide, text is at least 9 px, secondary table columns hide, and the action buttons of wide tables stay pinned on the right. Fold inner screens (640 px and up) keep two columns.
+- **App shell:**
+  - an installable manifest (full screen, any orientation) with pixel-art icons
+  - a full-screen button
+  - a screen wake lock while playing
+  - auto-pause when the app goes to the background
+  - vibration on goals, posts, big hits and whistles (OPTIONS → VIBRATION)
+  - the title demo runs at half frame rate on slower phones
+
 ## Broadcast booth
 
 - **The voices:** Mick Embers is a poetic play-by-play man with a big vocabulary who builds to the goal call. Eddie O'Shea is a folksy ex-player analyst ("you gotta get pucks to the net"). They are inspired by classic hockey broadcast pairings but are original characters with original lines.

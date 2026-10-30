@@ -134,9 +134,9 @@ export function createGM(h) {
         ${note()}
         ${h.win('CAP SHEET', capBar())}
         ${h.win('PLAYERS', `<div class="scroll"><table class="tbl">
-          <tr><th>#</th><th class="l">NAME</th><th>POS</th><th>AGE</th><th>OVR</th><th>POT</th><th>SALARY</th><th>YRS</th><th>GP</th><th>PTS</th><th></th></tr>
-          ${rows.map((p) => `<tr><td>${p.num}</td><td class="l">${h.esc(p.first)} ${h.esc(p.name).toUpperCase()}${p.inj ? ` <em class="inj">INJ ${p.inj}</em>` : ''}</td><td>${p.pos}</td><td>${p.age}</td><td><b>${L.ovr(p)}</b></td><td>${gm.potGrade(p)}</td>
-            <td>${gm.money(p.contract.sal)}</td><td>${p.contract.yrs}</td><td>${p.s.gp}</td><td>${p.pos === 'G' ? '-' : p.s.g + p.s.a}</td>
+          <tr><th class="col-opt">#</th><th class="l">NAME</th><th>POS</th><th>AGE</th><th>OVR</th><th>POT</th><th>SALARY</th><th>YRS</th><th class="col-opt">GP</th><th class="col-opt">PTS</th><th></th></tr>
+          ${rows.map((p) => `<tr><td class="col-opt">${p.num}</td><td class="l">${h.esc(p.first[0])}. ${h.esc(p.name).toUpperCase()}${p.inj ? ` <em class="inj">INJ ${p.inj}</em>` : ''}</td><td>${p.pos}</td><td>${p.age}</td><td><b>${L.ovr(p)}</b></td><td>${gm.potGrade(p)}</td>
+            <td>${gm.money(p.contract.sal)}</td><td>${p.contract.yrs}</td><td class="col-opt">${p.s.gp}</td><td class="col-opt">${p.pos === 'G' ? '-' : p.s.g + p.s.a}</td>
             <td>${st.confirmRelease === p.id ? h.btn('gmRelease', `CONFIRM (${gm.money(gm.releaseCost(p))} DEAD)`, `data-id="${p.id}"`, 'mini red') : h.btn('gmReleaseAsk', 'RELEASE', `data-id="${p.id}"`, 'mini')}</td></tr>`).join('')}
         </table></div>
         <p class="note">Releasing a player leaves a third of his salary on your cap for the rest of the season. POT is your scouts' grade of how good he can become.</p>`)}
@@ -205,7 +205,7 @@ export function createGM(h) {
         ${h.win('', `${capBar()}<button class="opt" data-act="gmFAFilter" data-d="1" data-left="gmFAFilterBack" data-right="gmFAFilter"><span class="ol">SHOW</span><span class="ov"><i>◀</i> ${POS_GROUPS[fi][1]} <i>▶</i></span></button>`)}
         ${h.win('AVAILABLE', list.length ? `<div class="scroll"><table class="tbl">
           <tr><th class="l">NAME</th><th>POS</th><th>AGE</th><th>OVR</th><th>POT</th><th>ASKING</th><th></th></tr>
-          ${list.slice(0, 40).map((p) => `<tr><td class="l">${h.esc(p.first)} ${h.esc(p.name).toUpperCase()}</td><td>${p.pos}</td><td>${p.age}</td><td><b>${L.ovr(p)}</b></td><td>${gm.potGrade(p)}</td><td>${gm.money(p.ask.sal)} × ${p.ask.yrs}</td>
+          ${list.slice(0, 40).map((p) => `<tr><td class="l">${h.esc(p.first[0])}. ${h.esc(p.name).toUpperCase()}</td><td>${p.pos}</td><td>${p.age}</td><td><b>${L.ovr(p)}</b></td><td>${gm.potGrade(p)}</td><td>${gm.money(p.ask.sal)} × ${p.ask.yrs}</td>
             <td>${h.btn('gmSign', 'SIGN', `data-id="${p.id}"`, 'mini red')} ${h.btn('gmLowball', 'OFFER 85%', `data-id="${p.id}"`, 'mini')}</td></tr>`).join('')}
         </table></div>` : '<p class="note">Nobody available at that position.</p>')}
         <div class="btnrow">${h.btn('gmFill', 'FILL ROSTER', '', 'red')}${l.phase === 'offseason' ? h.btn('gmNextSeason', 'START NEXT SEASON ▶', '', 'red') : ''}${h.btn('gmHubOrSeason', 'BACK', '', 'default')}</div>`,
@@ -233,8 +233,8 @@ export function createGM(h) {
         ${note()}
         ${h.win('CAP SHEET', `${capBar()}<p class="note">If you let everyone listed below go, you'll have ${team.roster.length - rows.length} players under contract. You need at least ${gm.ROSTER_MIN} (2 G, 6 D, 12 F) to start the season. Free agency and FILL ROSTER come after the draft.</p>`)}
         ${h.win('EXPIRING CONTRACTS', rows.length ? `<div class="scroll"><table class="tbl">
-          <tr><th class="l">NAME</th><th>POS</th><th>AGE</th><th>OVR</th><th>POT</th><th>OLD DEAL</th><th>ASKING</th><th></th></tr>
-          ${rows.map((p) => `<tr><td class="l">${h.esc(p.first)} ${h.esc(p.name).toUpperCase()}</td><td>${p.pos}</td><td>${p.age}</td><td><b>${L.ovr(p)}</b></td><td>${gm.potGrade(p)}</td><td>${gm.money(p.contract.sal)}</td><td>${gm.money(p.ask.sal)} × ${p.ask.yrs}</td>
+          <tr><th class="l">NAME</th><th>POS</th><th>AGE</th><th>OVR</th><th>POT</th><th class="col-opt">OLD DEAL</th><th>ASKING</th><th></th></tr>
+          ${rows.map((p) => `<tr><td class="l">${h.esc(p.first[0])}. ${h.esc(p.name).toUpperCase()}</td><td>${p.pos}</td><td>${p.age}</td><td><b>${L.ovr(p)}</b></td><td>${gm.potGrade(p)}</td><td class="col-opt">${gm.money(p.contract.sal)}</td><td>${gm.money(p.ask.sal)} × ${p.ask.yrs}</td>
             <td>${h.btn('gmResign', 'RE-SIGN', `data-id="${p.id}"`, 'mini red')} ${h.btn('gmLetGo', 'LET GO', `data-id="${p.id}"`, 'mini')}</td></tr>`).join('')}
         </table></div>` : '<p class="note">No more decisions. Anyone you let go becomes a free agent.</p>')}
         <div class="btnrow">${h.btn('gmFinishResign', rows.length ? 'LET THE REST GO & GO TO THE DRAFT ▶' : 'GO TO THE DRAFT ▶', '', 'red default')}${h.btn('gmBack', 'BACK')}</div>`,
@@ -247,7 +247,7 @@ export function createGM(h) {
     const slot = gm.currentPick(l);
     const mine = slot && slot.owner === l.userTeam;
     const myPicks = off.order.map((o, i) => ({ ...o, n: i + 1 })).filter((o) => o.owner === l.userTeam);
-    const board = off.pool.slice(0, 30).map((p, i) => `<tr><td>${i + 1}</td><td class="l">${h.esc(p.first)} ${h.esc(p.name).toUpperCase()}</td><td>${p.pos}</td><td>${p.age}</td><td>${L.ovr(p)}</td><td><b>${gm.potGrade(p)}</b></td>
+    const board = off.pool.slice(0, 30).map((p, i) => `<tr><td>${i + 1}</td><td class="l">${h.esc(p.first[0])}. ${h.esc(p.name).toUpperCase()}</td><td>${p.pos}</td><td>${p.age}</td><td>${L.ovr(p)}</td><td><b>${gm.potGrade(p)}</b></td>
       <td>${mine ? h.btn('gmDraft', 'DRAFT', `data-id="${p.id}"`, 'mini red') : ''}</td></tr>`).join('');
     const status = off.step !== 'draft' ? 'THE DRAFT IS COMPLETE'
       : `ROUND ${slot.round} · PICK ${off.slot + 1} OF ${off.order.length} · ${T(slot.owner).abbr} ${mine ? '(YOU) ARE' : 'IS'} ON THE CLOCK`;

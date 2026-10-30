@@ -74,7 +74,7 @@ Then open http://localhost:3000. The server reads `PORT` from the environment wh
 - **Aim:** hold left or right as you release a shot to pick a post.
 - **Faceoffs:** press pass or shoot as the puck drops to win the draw.
 - **Two players on one keyboard:** P1 uses WASD + C / V / B + Left Shift; P2 uses Arrows + , / . / / + Right Shift.
-- **Phones:** get an on-screen stick and buttons.
+- **Phones and foldables:** drag anywhere on the left to skate (the stick centres where your thumb lands). The PASS, SHOOT, DEKE and SPRINT buttons sit under your right thumb. In portrait the controls get their own band under the rink. In landscape they sit beside it. On a half-folded foldable they move to the other half of the screen. FULL SCREEN is on the title menu and the pause menu. On iPhone, use Add to Home Screen.
 
 ## Deploy to Railway
 

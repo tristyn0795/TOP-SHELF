@@ -40,6 +40,7 @@ export class LocalGame {
   loop(ts) {
     if (this.destroyed) return;
     this.raf = requestAnimationFrame(this.loop);
+    if (this.o.lite && (this.frame = (this.frame || 0) + 1) % 2) return; // half frame rate for the title demo on slow phones
     const dt = Math.min(0.1, this.last ? (ts - this.last) / 1000 : DT);
     this.last = ts;
     const inputs = this.o.input.read().map((i) => toWorld(i, false));
@@ -91,6 +92,7 @@ export class LocalGame {
   handleEvents(evs) {
     if (!evs.length) return;
     this.o.audio.events(evs);
+    this.o.onEvents?.(evs);
     for (const e of evs) {
       if (e.type === 'goal') {
         this.r.setExcited(e.so ? 1.5 : 3);
@@ -150,6 +152,7 @@ export class OnlineGame {
     if (ev && ev.length) {
       this.o.director?.onEvents(ev, s);
       this.o.audio.events(ev);
+      this.o.onEvents?.(ev);
       if (ev.some((e) => e.type === 'goal')) this.r.setExcited(3);
     }
   }

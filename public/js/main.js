@@ -3,7 +3,7 @@
 import { TEAMS, PERKS, CONFERENCES } from '/shared/teams.js';
 import * as L from '/shared/league.js';
 import { rand } from '/shared/rng.js';
-import { Input, mountTouch, keysFor, padFor } from './input.js';
+import { Input, mountTouch, isTouchDevice, keysFor, padFor } from './input.js';
 import { createControls } from './controls-ui.js';
 import { Audio } from './audio.js';
 import { load, save, remove } from './storage.js';
@@ -28,7 +28,7 @@ const app = {
   league: (() => { const lg = load('franchise'); if (lg) L.upgradeLeague(lg); return lg; })(),
   prefs: Object.assign({
     periodLen: 180, difficulty: 'pro', penalties: true, icing: true, replays: true,
-    commentary: true, pregame: true, postgame: true, tts: true, captions: true,
+    commentary: true, pregame: true, postgame: true, tts: true, captions: true, vibrate: true,
   }, load('prefs', {})),
   game: null,
   attract: null,
@@ -59,6 +59,7 @@ const OPTS = {
   postgame: [[true, 'ON'], [false, 'OFF']],
   tts: [[true, 'ON'], [false, 'OFF']],
   captions: [[true, 'ON'], [false, 'OFF']],
+  vibrate: [[true, 'ON'], [false, 'OFF']],
   seasonLength: L.SEASON_LENGTHS.map((x) => [x, `${x} GAMES`]),
   seriesLen: L.SERIES_LENGTHS.map((x) => [x, `BEST OF ${x}`]),
   ctrlA: [['cpu', 'CPU'], ['p1', 'PLAYER 1'], ['p2', 'PLAYER 2']],
@@ -140,7 +141,10 @@ function stopGame() {
   app.paused = false;
   input.active = false;
   input.onPause = null;
+  input.onFullscreen = null;
   document.removeEventListener('keydown', speedKey);
+  clearFit();
+  holdWake(false);
 }
 
 function screen(fn) {
@@ -212,6 +216,7 @@ function startAttract() {
       canvas: cv, input: NO_INPUT, audio: SILENT,
       teams: [L.gameTeam(EXH, a, false), L.gameTeam(EXH, b, true)], teamDefs: [T(a), T(b)], homeIdx: 1,
       cfg: { periodLen: 120 }, humans: [], replays: false,
+      lite: matchMedia('(prefers-reduced-motion: reduce)').matches || (isTouchDevice() && (navigator.hardwareConcurrency || 8) <= 4),
       onEnd: () => { if (app.attract === g) { g.destroy(); app.attract = null; run(); } },
     });
     app.attract = g;
@@ -260,6 +265,10 @@ function titleScreen() {
     mi('howto', 'INSTRUCTIONS'),
     mi('options', 'OPTIONS'),
   );
+  if (isTouchDevice() && !standalone() && !document.fullscreenElement) {
+    if (canFullscreen()) items.push(mi('fullscreen', 'FULL SCREEN', 'HIDE THE BROWSER BARS'));
+    else if (isIOS()) items.push(mi('installHint', 'PLAY FULL SCREEN', 'ADD TOP SHELF TO YOUR HOME SCREEN'));
+  }
   return {
     cls: 'scr-title',
     html: `
@@ -279,7 +288,11 @@ function titleScreen() {
 A.pressStart = () => { audio.unlock(); audio.play('select'); app.titleOpen = true; render(); };
 A.home = () => { app.titleOpen = true; screen(titleScreen); };
 A.continue = () => screen(seasonScreen);
-window.addEventListener('resize', () => { fitAttract(); fit(); });
+window.addEventListener('resize', relayout);
+window.addEventListener('orientationchange', relayout);
+window.visualViewport?.addEventListener('resize', relayout);
+document.addEventListener('fullscreenchange', relayout);
+window.viewport?.addEventListener?.('segmentschange', relayout);
 
 // ---------------------------------------------------------------- team select
 
@@ -554,14 +567,14 @@ function chunk(arr, n) {
 }
 
 function standTable(lg, rows, cut) {
-  return `<div class="scroll"><table class="tbl"><tr><th class="l">CLUB</th><th>GP</th><th>W</th><th>L</th><th>OTL</th><th>PTS</th><th>GF</th><th>GA</th><th>DIFF</th><th>STRK</th></tr>
-    ${rows.map((t, i) => { const r = t.rec; return `<tr class="${t.id === lg.userTeam ? 'me' : ''} ${cut && i === cut - 1 ? 'cut' : ''}"><td class="l">${teamLine(t.id)}</td><td>${r.gp}</td><td>${r.w}</td><td>${r.l}</td><td>${r.otl}</td><td><b>${r.pts}</b></td><td>${r.gf}</td><td>${r.ga}</td><td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td>${r.streak || '-'}</td></tr>`; }).join('')}</table></div>`;
+  return `<div class="scroll"><table class="tbl"><tr><th class="l">CLUB</th><th>GP</th><th>W</th><th>L</th><th>OTL</th><th>PTS</th><th class="col-opt">GF</th><th class="col-opt">GA</th><th>DIFF</th><th class="col-opt">STRK</th></tr>
+    ${rows.map((t, i) => { const r = t.rec; return `<tr class="${t.id === lg.userTeam ? 'me' : ''} ${cut && i === cut - 1 ? 'cut' : ''}"><td class="l">${teamLine(t.id)}</td><td>${r.gp}</td><td>${r.w}</td><td>${r.l}</td><td>${r.otl}</td><td><b>${r.pts}</b></td><td class="col-opt">${r.gf}</td><td class="col-opt">${r.ga}</td><td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td class="col-opt">${r.streak || '-'}</td></tr>`; }).join('')}</table></div>`;
 }
 
 function rosterTable(t, players, lineOf) {
-  return `<div class="scroll"><table class="tbl"><tr><th>LN</th><th>#</th><th class="l">NAME</th><th>POS</th><th>AGE</th><th>OVR</th><th>SPD</th><th>SHT</th><th>ACC</th><th>PAS</th><th>HND</th><th>CHK</th><th>DEF</th><th>GP</th><th>G</th><th>A</th><th>PTS</th></tr>
-    ${players.map((p) => `<tr><td>${lineOf[p.id] || ''}</td><td>${p.num}</td><td class="l">${esc(p.first[0])}. ${esc(p.name).toUpperCase()} <small class="dim">${p.arch.toUpperCase()}</small></td><td>${p.pos}</td><td>${p.age}</td><td><b>${L.ovr(p)}</b></td>
-      ${['spd', 'sht', 'acc', 'pas', 'hnd', 'chk', 'def'].map((k) => `<td class="r${Math.floor(p.r[k] / 10)}">${p.r[k]}</td>`).join('')}<td>${p.s.gp}</td><td>${p.s.g}</td><td>${p.s.a}</td><td><b>${p.s.g + p.s.a}</b></td></tr>`).join('')}</table></div>`;
+  return `<div class="scroll"><table class="tbl"><tr><th class="col-opt">LN</th><th>#</th><th class="l">NAME</th><th>POS</th><th>AGE</th><th>OVR</th><th>SPD</th><th>SHT</th><th class="col-opt">ACC</th><th class="col-opt">PAS</th><th class="col-opt">HND</th><th class="col-opt">CHK</th><th class="col-opt">DEF</th><th class="col-opt">GP</th><th class="col-opt">G</th><th class="col-opt">A</th><th>PTS</th></tr>
+    ${players.map((p) => `<tr><td class="col-opt">${lineOf[p.id] || ''}</td><td>${p.num}</td><td class="l">${esc(p.first[0])}. ${esc(p.name).toUpperCase()} <small class="dim">${p.arch.toUpperCase()}</small></td><td>${p.pos}</td><td>${p.age}</td><td><b>${L.ovr(p)}</b></td>
+      ${['spd', 'sht', 'acc', 'pas', 'hnd', 'chk', 'def'].map((k, i) => `<td class="r${Math.floor(p.r[k] / 10)}${i > 1 ? ' col-opt' : ''}">${p.r[k]}</td>`).join('')}<td class="col-opt">${p.s.gp}</td><td class="col-opt">${p.s.g}</td><td class="col-opt">${p.s.a}</td><td><b>${p.s.g + p.s.a}</b></td></tr>`).join('')}</table></div>`;
 }
 
 const PAGES = {
@@ -773,6 +786,15 @@ function controlsHtml(n = 1) {
     <tr><td class="l">SKATE</td><td colspan="2">${['up', 'left', 'down', 'right'].map((a) => keysFor('solo', a)).join(' · ')}</td><td colspan="2">CHANGE IN OPTIONS → CONTROLS</td></tr></table>`;
 }
 
+function touchLegend() {
+  return `<table class="tbl keys"><tr><th class="l">TOUCH</th><th>WITH PUCK</th><th>WITHOUT</th></tr>
+    <tr><td class="l">LEFT THUMB</td><td colspan="2">DRAG ANYWHERE ON THE LEFT TO SKATE</td></tr>
+    <tr><td class="l">PASS</td><td>PASS</td><td>SWITCH</td></tr>
+    <tr><td class="l">SHOOT</td><td>SHOOT<small>HOLD = SLAPPER</small></td><td>CHECK</td></tr>
+    <tr><td class="l">DEKE</td><td>DEKE</td><td>POKE</td></tr>
+    <tr><td class="l">SPRINT</td><td colspan="2">HOLD WHILE SKATING · BURNS ENERGY</td></tr></table>`;
+}
+
 function versusScreen(sp) {
   const home = sp.teams[sp.homeIdx], away = sp.teams[1 - sp.homeIdx];
   const H = T(home), Aw = T(away);
@@ -814,15 +836,44 @@ function gameShell(sp) {
         ${sp.mode !== 'online' ? mi('simRest', 'SIM TO END') : ''}
         ${mi('quitGame', sp.mode === 'online' ? 'LEAVE GAME' : isFranchise(sp) ? 'SIM TO END & EXIT' : 'QUIT TO MENU')}
         ${opt('SOUND', 'audio', 'muted', audio.muted)}
-      </div>${controlsHtml(sp.humans?.length || 1)}`, 'pause-win')}</div>
+        ${canFullscreen() ? mi('fullscreen', 'FULL SCREEN') : ''}
+      </div>${isTouchDevice() && sp.humans?.length !== 2 ? touchLegend() : controlsHtml(sp.humans?.length || 1)}`, 'pause-win')}</div>
   </div>`;
 }
 
-function fit() {
-  const st = $('#stage'), cv = $('#cv');
-  if (!st || !cv) return;
-  const w = st.clientWidth, h = st.clientHeight;
-  const ih = Math.max(300, Math.min(640, Math.round((400 * h) / w)));
+// ---------------------------------------------------------------- phones, folds, touch layout
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// Two screen segments = a foldable in book (side by side) or tabletop (stacked) posture.
+// window.__fold lets tests fake one: { dir: 'v' | 'h', hinge: px }.
+function segments() {
+  const f = window.__fold;
+  if (f) {
+    const W = innerWidth, H = innerHeight, g = f.hinge || 0;
+    return f.dir === 'v'
+      ? [{ x: 0, y: 0, width: W, height: (H - g) / 2 }, { x: 0, y: (H + g) / 2, width: W, height: (H - g) / 2 }]
+      : [{ x: 0, y: 0, width: (W - g) / 2, height: H }, { x: (W + g) / 2, y: 0, width: (W - g) / 2, height: H }];
+  }
+  const s = window.viewport?.segments || window.visualViewport?.segments;
+  return s && s.length === 2 ? s : null;
+}
+
+let insetProbe = null;
+function safeInsets() {
+  if (!insetProbe) {
+    insetProbe = document.createElement('div');
+    insetProbe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding:var(--sat) var(--sar) var(--sab) var(--sal)';
+    document.body.appendChild(insetProbe);
+  }
+  const cs = getComputedStyle(insetProbe);
+  return { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
+}
+
+// Size the rink canvas inside a rect: the internal height follows the rect's shape
+// (NHL '94 scroll shows more ice on tall screens), integer scaling once it's 2x or more.
+function fitCanvas(cv, w, h) {
+  const ih = clamp(Math.round((400 * h) / w), 300, 640);
   app.game?.r?.resize(ih);
   cv.height = ih;
   let s = Math.min(w / 400, h / ih);
@@ -830,6 +881,143 @@ function fit() {
   cv.style.width = Math.floor(400 * s) + 'px';
   cv.style.height = Math.floor(ih * s) + 'px';
 }
+
+// Lay out the game screen: where the rink goes and, on touch screens, where the stick and
+// buttons go. side = landscape gutters, bottom = a control band under the rink,
+// split-v / split-h = a foldable's second screen half holds the controls.
+function fit() {
+  const gm = $('.game'), st = $('#stage'), cv = $('#cv');
+  if (!gm || !st || !cv) return;
+  const W = gm.clientWidth, H = gm.clientHeight, sa = safeInsets();
+  const pad = gm.querySelector('.touch');
+  let stage = { x: 0, y: 0, w: W, h: H }, mode = 'none', g = null, cap = null;
+  if (pad) {
+    const seg = segments();
+    const sysOf = (x, y) => ({ x, y });
+    if (seg && seg[1].y > seg[0].y + 1) {
+      mode = 'split-v';
+      const a = seg[0], b = seg[1];
+      stage = { x: sa.l, y: a.y + sa.t, w: W - sa.l - sa.r, h: a.height - sa.t };
+      const bh = b.height - sa.b, half = (W - sa.l - sa.r) / 2;
+      const bs = clamp(Math.min(bh * 0.3, (half - 20) / 2.4), 52, 84);
+      g = { stick: { x: sa.l, y: b.y, w: half, h: bh }, btns: { x: sa.l + half, y: b.y, w: half, h: bh }, sys: sysOf(sa.l + 12, b.y + 8), b: bs };
+      cap = { x: W / 2, w: W - 24, bottom: H - (a.y + a.height) + 6 };
+    } else if (seg) {
+      mode = 'split-h';
+      const a = seg[0], b = seg[1];
+      stage = { x: a.x + sa.l, y: sa.t, w: a.width - sa.l, h: H - sa.t - sa.b };
+      const top = H * 0.3, bw = b.width - sa.r;
+      const bs = clamp(Math.min((H - top) * 0.3, (bw / 2 - 20) / 2.4), 52, 84);
+      g = { stick: { x: b.x, y: top, w: bw / 2, h: H - top - sa.b }, btns: { x: b.x + bw / 2, y: top, w: bw / 2, h: H - top - sa.b }, sys: sysOf(b.x + 12, sa.t + 10), b: bs };
+      cap = { x: b.x + bw / 2, w: bw - 24, top: sa.t + 64 };
+    } else if (W >= H && W - 300 >= H * 0.6) {
+      mode = 'side';
+      const avail = H - sa.t - sa.b;
+      const gut = Math.max(160, (W - (avail * 400) / 300) / 2);
+      const gl = gut + sa.l, gr = gut + sa.r;
+      stage = { x: gl, y: sa.t, w: W - gl - gr, h: avail };
+      const bs = clamp(Math.min((gut - 14) / 2.3, avail * 0.2), 56, 84);
+      const top = Math.min(64 + sa.t, H * 0.2);
+      g = { stick: { x: sa.l, y: top, w: gut, h: H - top - sa.b }, btns: { x: W - gr, y: top, w: gut, h: H - top - sa.b }, sys: sysOf(sa.l + 12, sa.t + 10), b: bs };
+      cap = { x: gl + stage.w / 2, w: stage.w - 16, bottom: sa.b + 8 };
+    } else {
+      mode = 'bottom';
+      // a narrow screen (fold cover) can't use all its height for the rink: give the rest to the controls
+      const tallest = ((W - sa.l - sa.r) / 400) * 640;
+      const band = Math.max(clamp(Math.round(H * 0.34), 150, 210) + sa.b, Math.round(H - sa.t - tallest));
+      stage = { x: sa.l, y: sa.t, w: W - sa.l - sa.r, h: H - band - sa.t };
+      const half = (W - sa.l - sa.r) / 2, bh = band - sa.b;
+      const bs = clamp(Math.min(bh * 0.36, (half - 16) / 2.35), 52, 84);
+      g = { stick: { x: sa.l, y: H - band, w: half, h: bh }, btns: { x: sa.l + half, y: H - band, w: half, h: bh }, sys: sysOf(sa.l + 12, H - band + 8), b: bs };
+      cap = { x: W / 2, w: W - 16, bottom: band + 6 };
+    }
+    pad.place({ mode, ...g });
+  }
+  gm.classList.remove('ctl-none', 'ctl-side', 'ctl-bottom', 'ctl-split-v', 'ctl-split-h');
+  gm.classList.add(`ctl-${mode}`);
+  Object.assign(st.style, { left: `${stage.x}px`, top: `${stage.y}px`, width: `${stage.w}px`, height: `${stage.h}px` });
+  fitCanvas(cv, stage.w, stage.h);
+  const bs = document.body.style;
+  if (cap) {
+    bs.setProperty('--cap-x', `${cap.x}px`);
+    bs.setProperty('--cap-w', `${Math.min(760, cap.w)}px`);
+    bs.setProperty('--cap-top', cap.top != null ? `${cap.top}px` : 'auto');
+    bs.setProperty('--cap-bot', cap.bottom != null ? `${cap.bottom}px` : 'auto');
+  } else clearFit();
+}
+
+function clearFit() {
+  for (const k of ['--cap-x', '--cap-w', '--cap-top', '--cap-bot']) document.body.style.removeProperty(k);
+}
+
+let relayoutRaf = 0;
+function relayout() {
+  cancelAnimationFrame(relayoutRaf);
+  relayoutRaf = requestAnimationFrame(() => { fitAttract(); fit(); });
+}
+
+const canFullscreen = () => !!document.fullscreenEnabled;
+const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const standalone = () => matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone;
+
+async function toggleFullscreen() {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else {
+      await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      await screen.orientation?.lock?.('any').catch(() => {});
+    }
+  } catch { /* the browser said no; nothing to do */ }
+  relayout();
+}
+A.fullscreen = () => { toggleFullscreen().then(() => { if (app.cur === titleScreen) render(); }); };
+A.installHint = () => screen(installScreen);
+
+function installScreen() {
+  return {
+    html: `
+      <header class="topbar"><h1>FULL SCREEN</h1><span>IPHONE & IPAD</span></header>
+      <div class="pick-one">${win('ADD TO HOME SCREEN', `
+        <p>Safari can't hide its bars for a web page, but it can install TOP SHELF like an app:</p>
+        <p class="note">1. Tap the SHARE button (the square with an arrow).<br>2. Choose ADD TO HOME SCREEN.<br>3. Open TOP SHELF from your home screen. It runs full screen, in any orientation.</p>
+        <p class="note">The home screen app keeps its own saves, separate from Safari, so a season started in Safari won't show up there.</p>`)}
+      <div class="btnrow center">${btn('home', 'BACK', '', 'default')}</div></div>`,
+    back: A.home,
+  };
+}
+
+// Keep the screen awake while a game is on.
+let wake = null;
+async function holdWake(on) {
+  try {
+    if (on && !wake && navigator.wakeLock && document.visibilityState === 'visible') {
+      wake = await navigator.wakeLock.request('screen');
+      wake.addEventListener('release', () => { wake = null; });
+    } else if (!on && wake) { const w = wake; wake = null; await w.release(); }
+  } catch { wake = null; }
+}
+
+const HAPTIC = { goal: [60, 40, 120], post: 40, whistle: 20, penalty: [30, 30, 30] };
+function buzz(evs) {
+  if (app.prefs.vibrate === false || !navigator.vibrate || app.paused) return;
+  let pat = null;
+  for (const e of evs) {
+    const p = e.type === 'hit' ? (e.big ? 50 : null) : HAPTIC[e.type];
+    if (p && (!pat || e.type === 'goal')) pat = p;
+  }
+  if (pat) navigator.vibrate(pat);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (app.game && !app.paused && $('#pause') && app.spec?.humans?.length) togglePause();
+    app.attract?.setPaused?.(true);
+    holdWake(false);
+  } else {
+    app.attract?.setPaused?.(false);
+    if (app.game && !app.paused) holdWake(true);
+  }
+});
 
 function launch(sp) {
   stopGame();
@@ -841,7 +1029,7 @@ function launch(sp) {
   input.setPlayers(sp.humans.length === 2 ? 2 : 1);
   input.active = true;
   const g = new LocalGame({
-    canvas: $('#cv'), input, audio,
+    canvas: $('#cv'), input, audio, onEvents: buzz,
     teams: sp.teams.map((id, i) => L.gameTeam(sp.rosters, id, i === sp.homeIdx)),
     teamDefs: sp.teams.map((id) => T(id)),
     homeIdx: sp.homeIdx, cfg: sp.cfg, humans: sp.humans, replays: app.prefs.replays,
@@ -851,9 +1039,11 @@ function launch(sp) {
   });
   app.game = g;
   input.onPause = () => togglePause();
+  input.onFullscreen = () => toggleFullscreen();
   if (!sp.humans.length) document.addEventListener('keydown', speedKey);
   if (sp.humans.length && mountTouch($('.game'), input)) $('.game').classList.add('has-touch');
   fit();
+  holdWake(true);
   g.start();
 }
 
@@ -863,6 +1053,7 @@ function togglePause() {
   const hidden = $('#pause').classList.toggle('hidden');
   app.paused = !hidden;
   g.setPaused?.(app.paused);
+  holdWake(!app.paused);
   nav.refresh({ back: null });
 }
 A.resume = () => togglePause();
@@ -1104,14 +1295,16 @@ function launchOnline(m) {
   input.setPlayers(1);
   input.active = true;
   const g = new OnlineGame({
-    canvas: $('#cv'), input, audio, send: netSend, side: m.side,
+    canvas: $('#cv'), input, audio, onEvents: buzz, send: netSend, side: m.side,
     teamDefs: m.teams.map((id) => T(id)), homeIdx: m.homeIdx,
     director: app.prefs.commentary !== false ? new Director({ voice, teams: m.teams, playoff: false }) : null,
   });
   app.game = g;
   input.onPause = () => togglePause();
+  input.onFullscreen = () => toggleFullscreen();
   if (mountTouch($('.game'), input)) $('.game').classList.add('has-touch');
   fit();
+  holdWake(true);
   g.start();
 }
 
@@ -1169,6 +1362,7 @@ function optionsScreen() {
         ${win('GAME', `
           ${opt('SOUND', 'audio', 'muted', audio.muted)}
           ${opt('GOAL REPLAYS', 'prefs', 'replays', p.replays)}
+          ${navigator.vibrate ? opt('VIBRATION', 'prefs', 'vibrate', p.vibrate) : ''}
           ${opt('PERIOD LENGTH', 'prefs', 'periodLen', p.periodLen)}
           ${opt('DIFFICULTY', 'prefs', 'difficulty', p.difficulty)}
           ${opt('PENALTIES', 'prefs', 'penalties', p.penalties)}
