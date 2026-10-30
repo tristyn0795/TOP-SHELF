@@ -1,66 +1,17 @@
 // Franchise mode: rosters, schedule, quick sim, standings, playoffs, leaders.
 // All state is plain JSON so it can live in localStorage.
-import { rand, randInt, gauss, pick, shuffle, poisson, weightedPick, newSeed } from './rng.js';
+import { rand, randInt, gauss, shuffle, poisson, weightedPick, newSeed } from './rng.js';
 import { TEAMS, effRatings } from './teams.js';
-import { FIRST, LAST } from './names.js';
+import { ovr, genPlayer, blankStats } from './players.js';
+import * as gm from './gm.js';
+
+export { ovr };
+export const autoLines = gm.autoLines;
 
 export const SEASON_LENGTHS = [16, 32, 41, 82];
 export const SERIES_LENGTHS = [1, 3, 5, 7];
 const N = TEAMS.length;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-
-const ARCH = {
-  F: ['Sniper', 'Playmaker', 'Power Fwd', 'Two-Way', 'Speedster', 'Grinder'],
-  D: ['Offensive', 'Stay-Home', 'Two-Way', 'Bruiser'],
-  G: ['Butterfly', 'Hybrid', 'Standup'],
-};
-const ARCH_BUMP = {
-  Sniper: { sht: 6, acc: 8, def: -6 },
-  Playmaker: { pas: 8, hnd: 6, chk: -6 },
-  'Power Fwd': { chk: 10, sht: 4, spd: -4 },
-  'Two-Way': { def: 8, end: 4, sht: -3 },
-  Speedster: { spd: 10, hnd: 3, chk: -6 },
-  Grinder: { chk: 8, end: 8, hnd: -6, acc: -4 },
-  Offensive: { sht: 6, pas: 6, def: -6 },
-  'Stay-Home': { def: 8, chk: 4, pas: -5 },
-  Bruiser: { chk: 12, spd: -4, hnd: -4 },
-  Butterfly: { gk: 2, reb: -2 },
-  Hybrid: {},
-  Standup: { reb: 4, gk: -2 },
-};
-
-const blankSkater = () => ({ gp: 0, g: 0, a: 0, pts: 0, sog: 0, hits: 0, pim: 0 });
-const blankGoalie = () => ({ gp: 0, w: 0, l: 0, otl: 0, sa: 0, ga: 0, so: 0 });
-const blankStats = (pos) => (pos === 'G' ? blankGoalie() : blankSkater());
-
-export function ovr(p) {
-  const r = p.r;
-  if (p.pos === 'G') return Math.round(r.gk * 0.75 + r.reb * 0.25);
-  if (p.pos === 'D') return Math.round((r.def * 1.5 + r.chk + r.spd + r.pas + r.sht * 0.7 + r.hnd * 0.6 + r.end * 0.3) / 6.1);
-  return Math.round((r.sht * 1.2 + r.acc * 1.2 + r.pas + r.hnd + r.spd + r.def * 0.5 + r.chk * 0.3 + r.end * 0.3) / 6.5);
-}
-
-function genPlayer(st, teamId, idx, pos, base, nums) {
-  const v = (b = 0) => base + b + gauss(st) * 5;
-  let r;
-  const arch = pick(st, ARCH[pos === 'G' ? 'G' : pos === 'D' ? 'D' : 'F']);
-  if (pos === 'G') r = { gk: v(), reb: v(-2) };
-  else {
-    r = { spd: v(), sht: v(), acc: v(), pas: v(), hnd: v(), chk: v(-4), def: v(-3), end: v(), fo: v(-6) };
-    if (pos === 'D') { r.def += 9; r.chk += 6; r.acc -= 7; r.hnd -= 5; r.sht += 2; r.fo = 35 + rand(st) * 15; }
-    if (pos === 'C') { r.fo += 12; r.pas += 4; }
-    if (pos === 'LW' || pos === 'RW') { r.acc += 4; r.sht += 3; r.fo -= 8; }
-  }
-  for (const [k, b] of Object.entries(ARCH_BUMP[arch])) if (r[k] != null) r[k] += b;
-  for (const k of Object.keys(r)) r[k] = Math.round(clamp(r[k], 30, 99));
-  let num;
-  do { num = pos === 'G' ? pick(st, [1, 29, 30, 31, 33, 35, 37, 39, 40, 41]) : randInt(st, 2, 98); } while (nums.has(num));
-  nums.add(num);
-  return {
-    id: `${teamId}-${idx}`, first: pick(st, FIRST), name: pick(st, LAST), num, pos,
-    age: randInt(st, 19, 35), arch, r, s: blankStats(pos), ps: blankStats(pos),
-  };
-}
 
 export function generateRoster(st, teamId, strength) {
   const top = 70 + strength * 13;
@@ -77,16 +28,6 @@ export function generateRoster(st, teamId, strength) {
   out.push(genPlayer(st, teamId, i++, 'G', top + 2 + rand(st) * 4, nums));
   out.push(genPlayer(st, teamId, i++, 'G', top - 8, nums));
   return out;
-}
-
-export function autoLines(roster) {
-  const by = (pos) => roster.filter((p) => p.pos === pos).sort((a, b) => ovr(b) - ovr(a));
-  const C = by('C'), LW = by('LW'), RW = by('RW'), D = by('D'), G = by('G');
-  return {
-    F: [0, 1, 2, 3].map((i) => [C[i].id, LW[i].id, RW[i].id]),
-    D: [0, 1, 2].map((i) => [D[i * 2].id, D[i * 2 + 1].id]),
-    G: [G[0].id, G[1].id],
-  };
 }
 
 // Rosters for every team from a fixed seed (exhibition + online use these).
@@ -118,10 +59,10 @@ export function teamRatings(team) {
   return { off: o.off, def: o.def, gk: o.gk, spd: avg('spd'), chk: avg('chk'), all: o.all };
 }
 
-// Engine team descriptor.
+// Engine team descriptor (injured players are swapped out for tonight's game).
 export function gameTeam(teams, tid, home) {
-  const t = teams[tid];
-  return { team: TEAMS[tid], roster: t.roster, lines: t.lines, home };
+  const lu = gm.gameLineup(teams[tid]);
+  return { team: TEAMS[tid], roster: lu.roster, lines: lu.lines, home };
 }
 
 // ---------------------------------------------------------------- league lifecycle
@@ -141,6 +82,7 @@ export function createLeague(o) {
     version: 1, seed: st.seed, userTeam: o.userTeam, year: 2026, settings, teams,
     schedule: makeSchedule(st, settings.seasonLength), day: 0, phase: 'season', playoffs: null, news: [], champions: [],
   };
+  gm.upgradeLeague(league);
   addNews(league, `You're behind the bench in ${TEAMS[o.userTeam].city}. ${settings.seasonLength} games to earn a playoff spot.`);
   return league;
 }
@@ -173,37 +115,22 @@ function addNews(league, text) {
   if (league.news.length > 60) league.news.length = 60;
 }
 
-export function startNextSeason(league) {
-  const st = { seed: league.seed };
-  league.year++;
-  for (const t of league.teams) {
-    for (const p of t.roster) {
-      const delta = p.age < 24 ? randInt(st, 0, 4) : p.age < 29 ? randInt(st, -1, 2) : p.age < 33 ? randInt(st, -3, 0) : randInt(st, -5, -1);
-      for (const k of Object.keys(p.r)) p.r[k] = Math.round(clamp(p.r[k] + delta + gauss(st), 30, 99));
-      p.age++;
-      if (p.age > 37) { // retire and replace with a prospect
-        const fresh = genPlayer(st, t.id, p.id.split('-')[1], p.pos, 64 + rand(st) * 8, new Set(t.roster.map((x) => x.num)));
-        fresh.id = p.id; fresh.age = randInt(st, 19, 22);
-        Object.assign(p, fresh);
-      }
-      p.s = blankStats(p.pos);
-      p.ps = blankStats(p.pos);
-    }
-    t.lines = autoLines(t.roster);
-    t.rec = blankRec();
-  }
-  league.schedule = makeSchedule(st, league.settings.seasonLength);
-  league.seed = st.seed;
-  league.day = 0;
-  league.phase = 'season';
-  league.playoffs = null;
-  addNews(league, `Opening night of the ${league.year} season.`);
+// Off-season: season over -> re-sign -> draft -> free agency -> next season (see gm.js).
+export function startOffseason(league) {
+  gm.upgradeLeague(league);
+  return gm.beginOffseason(league, (t) => addNews(league, t));
 }
+
+export function finishOffseason(league) {
+  return gm.startNewSeason(league, makeSchedule, blankRec, (t) => addNews(league, t));
+}
+
+export const upgradeLeague = gm.upgradeLeague;
 
 // ---------------------------------------------------------------- quick sim
 
 function power(league, tid) {
-  const t = league.teams[tid];
+  const t = { ...league.teams[tid], lines: gm.gameLineup(league.teams[tid]).lines };
   const perk = TEAMS[tid].perk;
   const P = Object.fromEntries(t.roster.map((p) => [p.id, effRatings(p.r, perk)]));
   const fw = [0.38, 0.3, 0.2, 0.12], dw = [0.45, 0.35, 0.2];
@@ -251,9 +178,10 @@ export function simGame(league, h, a, playoff = false) {
     fow: [0, 0], fot: 0, perScore: [[0, 0, 0], [0, 0, 0]], goals: [], players: [{}, {}], goalies: [], so: null,
   };
   for (const i of [0, 1]) {
-    const t = league.teams[ids[i]];
+    const t = { ...league.teams[ids[i]], lines: gm.gameLineup(league.teams[ids[i]]).lines };
     const stats = result.players[i];
-    const skaters = t.roster.filter((p) => p.pos !== 'G');
+    const dressed = new Set([...t.lines.F.flat(), ...t.lines.D.flat()]);
+    const skaters = t.roster.filter((p) => dressed.has(p.id));
     for (const p of skaters) stats[p.id] = { g: 0, a: 0, sog: 0, hits: 0, pim: 0 };
     const lineOf = {};
     t.lines.F.forEach((l, li) => l.forEach((id) => (lineOf[id] = li)));
@@ -292,7 +220,7 @@ export function simGame(league, h, a, playoff = false) {
   for (const i of [0, 1]) {
     result.ppg[i] = result.goals.filter((g) => g.team === i && rand(st) < Math.min(0.5, 0.12 * result.ppo[i])).length;
     const realGoals = result.goals.filter((g) => g.team === 1 - i).length;
-    result.goalies.push({ pid: league.teams[ids[i]].lines.G[0], sa: result.shots[1 - i], ga: realGoals });
+    result.goalies.push({ pid: gm.gameLineup(league.teams[ids[i]]).lines.G[0], sa: result.shots[1 - i], ga: realGoals });
   }
   result.fot = 50 + randInt(st, -8, 8);
   result.fow[0] = Math.round(result.fot * (0.5 + gauss(st) * 0.05));
@@ -329,8 +257,9 @@ export function applyResult(league, result, playoff) {
   [t0, t1].forEach((tid, i) => {
     const t = league.teams[tid];
     const map = Object.fromEntries(t.roster.map((p) => [p.id, p]));
-    const dressed = new Set([...t.lines.F.flat(), ...t.lines.D.flat()]);
-    for (const pid of dressed) map[pid][bucket].gp++;
+    const lu = gm.gameLineup(t).lines;
+    const dressed = new Set([...lu.F.flat(), ...lu.D.flat()]);
+    for (const pid of dressed) if (map[pid]) map[pid][bucket].gp++;
     for (const [pid, st] of Object.entries(result.players[i] || {})) {
       const p = map[pid];
       if (!p || p.pos === 'G') continue;
@@ -403,12 +332,15 @@ export function simDay(league, userResult = null, pre = null) {
   const games = todaysGames(league);
   if (!games.length) return [];
   const out = [];
+  const news = (t) => addNews(league, t);
+  if (league.version >= 2) gm.healDay(league, games.flatMap((g) => [g.h, g.a]));
   for (const g of games) {
     let res;
     const isUser = g.h === league.userTeam || g.a === league.userTeam;
     if (isUser && userResult) res = userResult;
     else res = pre?.[`${g.h}-${g.a}`] || simGame(league, g.h, g.a, playoff);
     applyResult(league, res, playoff);
+    if (league.version >= 2) gm.rollInjuries(league, [g.h, g.a], news);
     const hi = res.teamIds.indexOf(g.h);
     const line = { h: g.h, a: g.a, hs: res.score[hi], as: res.score[1 - hi], dec: res.decision };
     out.push(line);
@@ -431,6 +363,10 @@ export function simDay(league, userResult = null, pre = null) {
   else {
     league.day++;
     if (league.day >= league.schedule.length) startPlayoffs(league);
+  }
+  if (league.version >= 2) {
+    gm.cpuMaintain(league);
+    gm.cpuTrades(league, news);
   }
   return out;
 }

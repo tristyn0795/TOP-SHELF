@@ -9,6 +9,19 @@ Every screen plays like a cartridge from 1994: an attract-mode demo behind PRESS
 - **Real rules:** three periods, 3-on-3 OT then a playable shootout in the regular season, sudden-death 5-on-5 OT in the playoffs, 2-minute minors with power plays, and icing. There is no offside, as in the classics.
 - No build step, no database, no external assets. Sound is synthesized in the browser.
 
+## Running your club (GM mode)
+
+From the season menu, **MANAGE TEAM** opens the front office:
+
+- **Lines:** pick a slot, then pick who goes there (4 forward lines, 3 D pairs, 2 goalies, plus scratches). AUTO SET LINES fills them by rating. Injured players are swapped out automatically on game day.
+- **Roster & contracts:** salary, years left, potential grade and injuries for every player, against an $88M salary cap. Releasing a player leaves a third of his salary on your cap for the rest of the season.
+- **Trades:** pick a club, choose players and draft picks from both sides, and propose. The CPU judges value (rating, age, potential, contract), the cap, and roster needs. Ask WHAT DO THEY WANT? if a deal falls short. Trades close at 75% of the season and reopen in the off-season.
+- **Free agents:** sign at the asking price, or try a lowball offer.
+- **Injuries** happen through the season; CPU clubs fill holes from free agency or the minors.
+- **Off-season** (after the Cup is handed out): re-sign or let go your expiring contracts → a 2-round **entry draft** with scouting grades (traded picks count) → **free agency** → START NEXT SEASON. Young players grow toward their potential, veterans decline and retire. Your roster needs 20-26 players (2+ goalies, 6+ D, 12+ F) under the cap.
+
+Seasons saved before GM mode are upgraded automatically.
+
 ## The broadcast booth
 
 Every game can be called by **Mick Embers** (play-by-play) and **Eddie O'Shea** (analyst):
@@ -44,6 +57,8 @@ Then open http://localhost:3000. The server reads `PORT` from the environment wh
 
 **Menus:** arrows / WASD / d-pad move the cursor. Enter, Space, J or A selects; Esc, Backspace, K or B goes back. Left/right changes options and flips pages.
 
+**Every game control can be rebound** in OPTIONS → CONTROLS: two keys per action for single player, separate layouts for couch Player 1 and Player 2, and gamepad buttons. The defaults are below.
+
 **On the ice:**
 
 | | Offense | Defense | Keys | Gamepad |
@@ -78,6 +93,8 @@ server/rooms.js     Online rooms: 4-letter codes, authoritative engine at 60 Hz,
 shared/             Isomorphic game code, loaded by both the browser and the server
   engine.js         The game: skating physics, puck, goalies, AI, rules, penalties, shootout
   league.js         Seasons: rosters, schedule, quick-sim, standings, playoffs, leaders, team ratings
+  gm.js             GM mode: contracts & cap, injuries, lineups, trades & picks, free agency, off-season
+  players.js        Player generation and overall ratings
   teams.js          The 32 fictional clubs (made-up hometowns, colours, arenas, specialties)
   booth-lines.js    The commentary script: every line, who says it, when it plays, delivery notes
   rng.js, names.js
@@ -89,7 +106,9 @@ public/
   js/crest.js       Pixel-art club crests
   js/booth/         Commentary: voice playback + captions, live director, pre/post-game shows, recording studio
   voice/            Recorded commentary clips (<line id>.mp3)
-  js/input.js       Keyboard, gamepads, touch
+  js/input.js       Keyboard, gamepads, touch, rebindable controls
+  js/controls-ui.js OPTIONS → CONTROLS screen
+  js/gm-ui.js       Manage-team screens: lines, contracts, trades, free agents, re-sign, draft
   js/audio.js       Synthesized arena sounds: horn, organ, crowd, posts
 test/
   headless.mjs      CPU-vs-CPU games plus a full simulated season, with invariant checks
@@ -110,6 +129,10 @@ node test/human-bot.mjs
 node test/booth.mjs
 ```
 
-`node test/booth.mjs` checks the commentary script (ids, team slots, every category the game asks for). `npm test` plays CPU-vs-CPU games through the real engine and prints per-game averages (goals, shots, save percentage, penalties, one-timers). It asserts that the puck and players never leave the rink, that every game ends, and that a full season reaches a champion with consistent standings.
+```bash
+node test/gm.mjs
+```
+
+`node test/gm.mjs` plays two full seasons with off-seasons and checks the cap, trades, free agency, the draft and save upgrades. `node test/booth.mjs` checks the commentary script (ids, team slots, every category the game asks for). `npm test` plays CPU-vs-CPU games through the real engine and prints per-game averages (goals, shots, save percentage, penalties, one-timers). It asserts that the puck and players never leave the rink, that every game ends, and that a full season reaches a champion with consistent standings.
 
 See [DESIGN.md](DESIGN.md) for the research behind the mechanics and ideas for what to build next.

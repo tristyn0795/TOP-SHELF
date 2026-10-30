@@ -3,7 +3,8 @@
 import { TEAMS, PERKS, CONFERENCES } from '/shared/teams.js';
 import * as L from '/shared/league.js';
 import { rand } from '/shared/rng.js';
-import { Input, mountTouch } from './input.js';
+import { Input, mountTouch, keysFor, padFor } from './input.js';
+import { createControls } from './controls-ui.js';
 import { Audio } from './audio.js';
 import { load, save, remove } from './storage.js';
 import { LocalGame, OnlineGame } from './game-client.js';
@@ -14,6 +15,7 @@ import { Voice } from './booth/voice.js';
 import { Director } from './booth/director.js';
 import { Show, pregameSteps, postgameSteps, makePicker } from './booth/shows.js';
 import { createStudio } from './booth/studio.js';
+import { createGM } from './gm-ui.js';
 
 const $app = document.getElementById('app');
 const $ = (sel) => document.querySelector(sel);
@@ -23,7 +25,7 @@ const EXH = L.buildTeams(1994);
 const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 
 const app = {
-  league: load('franchise'),
+  league: (() => { const lg = load('franchise'); if (lg) L.upgradeLeague(lg); return lg; })(),
   prefs: Object.assign({
     periodLen: 180, difficulty: 'pro', penalties: true, icing: true, replays: true,
     commentary: true, pregame: true, postgame: true, tts: true, captions: true,
@@ -107,7 +109,7 @@ const A = {};
 const nav = new Nav({
   run: (act, el, d) => A[act]?.(d, el),
   sound: (n) => audio.play(n),
-  isActive: () => !app.game || app.paused,
+  isActive: () => (!app.game || app.paused) && !app.capturing,
 });
 
 document.addEventListener('click', (e) => {
@@ -389,6 +391,7 @@ A.createLeague = () => {
 function phaseLabel(lg) {
   if (lg.phase === 'season') return `${lg.year} · GAME ${Math.min(lg.day + 1, lg.schedule.length)} OF ${lg.schedule.length}`;
   if (lg.phase === 'playoffs') return `${lg.year} PLAYOFFS · ${L.ROUND_NAMES[lg.playoffs.rounds[lg.playoffs.cur].length].toUpperCase()}`;
+  if (lg.phase === 'offseason') return `${lg.year} OFF-SEASON · ${{ resign: 'RE-SIGN', draft: 'ENTRY DRAFT', fa: 'FREE AGENCY' }[lg.offseason.step]}`;
   return `${lg.year} · SEASON OVER`;
 }
 
@@ -471,6 +474,13 @@ function preview(kind) {
     case 'news': return `<div class="pv-label">NEWS WIRE</div>${lg.news.slice(0, 5).map((n) => `<p class="news">${esc(n.text)}</p>`).join('')}`;
     case 'bracket': return lg.playoffs ? `<div class="pv-label">${L.ROUND_NAMES[lg.playoffs.rounds[lg.playoffs.cur].length].toUpperCase()}</div>${bracketHtml(lg, lg.playoffs.rounds[lg.playoffs.cur])}` : preview('standings');
     case 'options': return `<div class="pv-label">OPTIONS</div><p class="note">Period length, difficulty, penalties, icing, sound and replays.</p>`;
+    case 'gm': return gmui.preview();
+    case 'off': {
+      const off = lg.offseason;
+      const steps = [['resign', 'RE-SIGN YOUR PLAYERS'], ['draft', 'ENTRY DRAFT'], ['fa', 'FREE AGENCY']];
+      return `<div class="pv-label">${lg.year} OFF-SEASON</div>${steps.map(([k, l], i) => `<p class="${off.step === k ? 'good' : 'note'}">${i + 1}. ${l}${off.step === k ? ' ◀ NOW' : ''}</p>`).join('')}
+        <p class="note">Then START NEXT SEASON. Your roster must have 20-26 players (2+ G, 6+ D, 12+ F) and fit under the cap.</p>${gmui.capBar()}`;
+    }
     case 'exit': return `<div class="pv-label">SAVE & EXIT</div><p class="note">Your season is saved in this browser after every game.</p>`;
     default: return '';
   }
@@ -482,16 +492,23 @@ function seasonScreen() {
   const t = T(lg.userTeam), me = lg.teams[lg.userTeam];
   const g = L.userGameToday(lg);
   const items = [];
-  if (lg.phase === 'done') items.push(mi('nextSeason', 'START NEXT SEASON', '', 'data-preview="champ"'));
+  if (lg.phase === 'done') items.push(mi('gmStartOffseason', 'START OFF-SEASON', 'RE-SIGN · DRAFT · FREE AGENCY', 'data-preview="champ"'));
+  if (lg.phase === 'offseason') {
+    const step = lg.offseason.step;
+    if (step === 'resign') items.push(mi('gmResignScreen', 'RE-SIGN PLAYERS', `${lg.offseason.expiring.length} EXPIRING CONTRACTS`, 'data-preview="off"'));
+    if (step === 'draft') items.push(mi('gmDraftScreen', 'ENTRY DRAFT', 'ON THE CLOCK', 'data-preview="off"'));
+    if (step === 'fa') items.push(mi('gmFA', 'FREE AGENCY', 'SIGN PLAYERS', 'data-preview="off"'), mi('gmNextSeason', 'START NEXT SEASON', '', 'data-preview="off"'));
+  }
   if (g) {
     items.push(mi('play', 'PLAY NEXT GAME', '', 'data-preview="next"'), mi('watch', 'WATCH NEXT GAME', '', 'data-preview="next"'), mi('simDay', 'SIM NEXT GAME', '', 'data-preview="next"'));
-  } else if (lg.phase !== 'done') items.push(mi('simDay', 'SIM NEXT DAY', '', 'data-preview="out"'));
+  } else if (lg.phase === 'playoffs') items.push(mi('simDay', 'SIM NEXT DAY', '', 'data-preview="out"'));
   if (lg.phase === 'season') items.push(mi('simWeek', 'SIM 7 DAYS', '', 'data-preview="recent"'), mi('simPlayoffs', 'SIM TO PLAYOFFS', '', 'data-preview="standings"'));
-  if (lg.phase !== 'done') items.push(mi('simEnd', 'SIM TO FINAL', '', 'data-preview="bracket"'));
+  if (lg.phase === 'season' || lg.phase === 'playoffs') items.push(mi('simEnd', 'SIM TO FINAL', '', 'data-preview="bracket"'));
+  items.push(mi('gmHub', 'MANAGE TEAM', '', 'data-preview="gm"'));
   items.push(
     mi('pages', 'STANDINGS', '', 'data-k="standings" data-preview="standings"'),
     mi('pages', 'SCHEDULE', '', 'data-k="schedule" data-preview="schedule"'),
-    mi('pages', 'ROSTER & LINES', '', 'data-k="roster" data-preview="roster"'),
+    mi('pages', 'PLAYER STATS', '', 'data-k="roster" data-preview="roster"'),
     mi('pages', 'LEAGUE LEADERS', '', 'data-k="leaders" data-preview="leaders"'),
     mi('pages', 'NEWS WIRE', '', 'data-k="news" data-preview="news"'),
     mi('options', 'OPTIONS', '', 'data-preview="options"'),
@@ -526,7 +543,7 @@ A.simDay = () => { let n = 0; simUntil((lg) => lg.phase !== 'done' && n++ < 1); 
 A.simWeek = () => { let n = 0; simUntil((lg) => lg.phase === 'season' && n++ < 7); };
 A.simPlayoffs = () => simUntil((lg) => lg.phase === 'season');
 A.simEnd = () => simUntil((lg) => lg.phase !== 'done');
-A.nextSeason = () => { L.startNextSeason(app.league); persist(); render(); };
+A.nextSeason = () => A.gmStartOffseason();
 
 // ---------------------------------------------------------------- paged stat screens
 
@@ -704,7 +721,7 @@ function exhibitionScreen() {
         ${opt('DIFFICULTY', 'prefs', 'difficulty', p.difficulty)}
         ${opt('PENALTIES', 'prefs', 'penalties', p.penalties)}
         ${opt('ICING', 'prefs', 'icing', p.icing)}</div>
-        <p class="note">Set CONTROL to PLAYER 1 / PLAYER 2 on either club. Two players share the keyboard (P1: WASD + C V B, P2: arrows + , . /) or use two gamepads. CPU on both sides is a demo game; TAB fast-forwards.</p>`)}
+        <p class="note">Set CONTROL to PLAYER 1 / PLAYER 2 on either club. Two players share the keyboard (keys under OPTIONS → CONTROLS) or use two gamepads. CPU on both sides is a demo game; TAB fast-forwards.</p>`)}
       <div class="btnrow">${btn('faceOff', 'FACE OFF ▶', '', 'red')}${btn('home', 'BACK')}</div>`,
     back: A.home,
     prefer: '.tp-main[data-slot="away"]',
@@ -742,18 +759,18 @@ A.faceOff = () => {
 
 function controlsHtml(n = 1) {
   if (n === 2) {
+    const row = (l, a) => `<tr><td class="l">${l}</td><td>${keysFor('p1', a)}</td><td>${keysFor('p2', a)}</td><td>${a === 'move' ? 'STICK' : padFor(a)}</td></tr>`;
+    const move = (sc) => ['up', 'left', 'down', 'right'].map((a) => keysFor(sc, a).split(' / ')[0]).join(' ');
     return `<table class="tbl keys"><tr><th class="l"></th><th>P1</th><th>P2</th><th>GAMEPAD</th></tr>
-      <tr><td class="l">SKATE</td><td>WASD</td><td>ARROWS</td><td>STICK</td></tr>
-      <tr><td class="l">PASS / SWITCH</td><td>C</td><td>,</td><td>A</td></tr>
-      <tr><td class="l">SHOOT / CHECK</td><td>V</td><td>.</td><td>B</td></tr>
-      <tr><td class="l">DEKE / POKE</td><td>B</td><td>/</td><td>X</td></tr>
-      <tr><td class="l">SPRINT</td><td>L-SHIFT</td><td>R-SHIFT</td><td>RB</td></tr></table>`;
+      <tr><td class="l">SKATE</td><td>${move('p1')}</td><td>${move('p2')}</td><td>STICK</td></tr>
+      ${row('PASS / SWITCH', 'pass')}${row('SHOOT / CHECK', 'shoot')}${row('DEKE / POKE', 'deke')}${row('SPRINT', 'sprint')}</table>`;
   }
   return `<table class="tbl keys"><tr><th class="l"></th><th>WITH PUCK</th><th>WITHOUT</th><th>KEYS</th><th>PAD</th></tr>
-    <tr><td class="l">BUTTON 1</td><td>PASS</td><td>SWITCH</td><td>J / Z</td><td>A</td></tr>
-    <tr><td class="l">BUTTON 2</td><td>SHOOT<small>HOLD = SLAPPER</small></td><td>CHECK</td><td>K / X</td><td>B</td></tr>
-    <tr><td class="l">BUTTON 3</td><td>DEKE</td><td>POKE</td><td>L / C</td><td>X</td></tr>
-    <tr><td class="l">SKATE</td><td colspan="2">ARROWS / WASD</td><td>SHIFT/SPACE SPRINT</td><td>RB</td></tr></table>`;
+    <tr><td class="l">BUTTON 1</td><td>PASS</td><td>SWITCH</td><td>${keysFor('solo', 'pass')}</td><td>${padFor('pass')}</td></tr>
+    <tr><td class="l">BUTTON 2</td><td>SHOOT<small>HOLD = SLAPPER</small></td><td>CHECK</td><td>${keysFor('solo', 'shoot')}</td><td>${padFor('shoot')}</td></tr>
+    <tr><td class="l">BUTTON 3</td><td>DEKE</td><td>POKE</td><td>${keysFor('solo', 'deke')}</td><td>${padFor('deke')}</td></tr>
+    <tr><td class="l">SPRINT</td><td colspan="2">BURNS ENERGY</td><td>${keysFor('solo', 'sprint')}</td><td>${padFor('sprint')}</td></tr>
+    <tr><td class="l">SKATE</td><td colspan="2">${['up', 'left', 'down', 'right'].map((a) => keysFor('solo', a)).join(' · ')}</td><td colspan="2">CHANGE IN OPTIONS → CONTROLS</td></tr></table>`;
 }
 
 function versusScreen(sp) {
@@ -1110,7 +1127,7 @@ A.rematch = () => netSend({ t: 'rematch' });
 // ---------------------------------------------------------------- instructions
 
 const HOWTO = [
-  ['CONTROLS', () => `${controlsHtml(1)}<p class="note">Two players on one keyboard: P1 uses WASD + C, V, B and left Shift. P2 uses the arrows + comma, period, slash and right Shift. Gamepads plug and play. Phones get a touch stick.</p>`],
+  ['CONTROLS', () => `${controlsHtml(1)}<p class="note">Two players on one keyboard:</p>${controlsHtml(2)}<p class="note">Change any key or gamepad button under OPTIONS → CONTROLS. Phones get a touch stick.</p>`],
   ['WITH THE PUCK', () => `<p><b>TAP SHOOT</b> for a quick wrister. <b>HOLD SHOOT</b> to load a slapper; the meter fills while you glide slower.</p>
     <p><b>ONE-TIMER:</b> hit SHOOT while your pass is still on its way. The receiver fires on arrival, before the goalie can slide across.</p>
     <p><b>PICK YOUR SPOT:</b> hold left or right as you release to aim at a post. Hit the top of the net for a TOP SHELF.</p>
@@ -1165,6 +1182,8 @@ function optionsScreen() {
           ${opt('CAPTIONS', 'prefs', 'captions', p.captions)}
           <p class="note">MICK EMBERS and EDDIE O'SHEA call the action. Lines you haven't recorded yet are read by your browser's built-in voice.</p>
           <div class="btnrow">${btn('studio', 'COMMENTARY STUDIO ▶', '', 'red')}</div>`)}
+        ${win('CONTROLS', `<p class="note">Rebind every key for single player and couch players 1 and 2, plus gamepad buttons.</p>${controlsHtml(1)}
+          <div class="btnrow">${btn('controls', 'CHANGE CONTROLS ▶', '', 'red')}</div>`)}
         ${lg ? win(`SEASON · ${esc(T(lg.userTeam).name).toUpperCase()}`, `
           ${opt('PERIOD LENGTH', 'league', 'periodLen', lg.settings.periodLen)}
           ${opt('DIFFICULTY', 'league', 'difficulty', lg.settings.difficulty)}
@@ -1189,7 +1208,7 @@ A.deleteLeague = () => {
 
 const voice = new Voice(audio, app.prefs);
 voice.init();
-window.__topshelf = { voice }; // handy for debugging the booth from the console
+window.__topshelf = { voice, get game() { return app.game; } }; // handy for debugging from the console
 const picker = makePicker();
 
 function beginGame(sp) {
@@ -1304,6 +1323,14 @@ const studio = createStudio({
   isOpen: () => app.cur === studioScreen,
 });
 function studioScreen() { return studio.screen(); }
+const controls = createControls({
+  A, render, win, btn, esc,
+  back: () => screen(optionsScreen),
+  setCapturing: (on) => { app.capturing = on; },
+});
+function controlsScreen() { return controls.screen(); }
+A.controls = () => { controls.open(); screen(controlsScreen); };
+const gmui = createGM({ A, render, screen, win, btn, mi, esc, crest, persist, league: () => app.league, seasonScreen });
 A.studio = () => { audio.unlock(); voice.refreshLocal().then(() => screen(studioScreen)); };
 
 A.showSkipLine = () => app.show?.skipLine();

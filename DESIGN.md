@@ -8,6 +8,18 @@ TOP SHELF is a real-time arcade hockey game wrapped in a season mode, with onlin
 - **Clubs:** 32 clubs with made-up hometowns (Port Kessel, Saltmarsh, Red Mesa, Skyhaven…), pixel crests drawn at runtime (`public/js/crest.js`), and NHL '94-style ratings bars (offense, defense, goaltending, skating, checking, overall) on the select and versus screens. Each club has one SPECIALTY that changes how it plays.
 - **Season flow:** a vertical season menu whose right-hand window previews the highlighted item. Stats open as pages you flip with left/right. Before each game there's a versus screen. Between periods, an "Around the League" board shows the day's other scores on the jumbotron. The trophy is the Silver Cup.
 
+## GM mode
+
+- **Rules live in `shared/gm.js`** (pure JSON in, JSON out, tested by `test/gm.mjs`). `league.js` calls it from the day loop: injuries heal and happen, CPU clubs keep legal rosters, and occasionally trade with each other.
+- **Money:** fair salary rises steeply with overall rating (≈$0.75M at 65, $3M at 75, $8.5M at 85). The cap is $88M. New leagues scale each club's payroll to 75–92% of the cap so everyone starts close to it, like the real league.
+- **Game day:** `gameLineup()` turns your saved lines into tonight's lineup. It swaps in healthy extras for injured players (and promotes the backup goalie) without changing your lines. The engine and the quick sim both use it.
+- **Trade AI:** player value = (rating + youth upside − 55)² ÷ 10, scaled by age, plus contract surplus. Picks are valued by round and the original team's standing. The CPU wants ≥105% back (120% for its stars), stays legal on the cap and roster, and explains every rejection.
+- **Off-season:** players develop (toward their potential if young, down if old), retire, and contracts tick down. Then re-sign → 2-round draft (order by standings and playoff exit, traded picks honoured, scouting grades with noise) → free agency → new season.
+
+## Controls
+
+Bindings live in `public/js/input.js` (saved in localStorage): two keys per action for single player and for each couch player, plus gamepad buttons. Binding a key moves it off any other action in that layout. Menus always use arrows/Enter/Esc and Esc always pauses, so a bad binding can't lock anyone out.
+
 ## Broadcast booth
 
 - **The voices:** Mick Embers is a poetic play-by-play man with a big vocabulary who builds to the goal call. Eddie O'Shea is a folksy ex-player analyst ("you gotta get pucks to the net"). They are inspired by classic hockey broadcast pairings but are original characters with original lines.
@@ -68,5 +80,4 @@ TOP SHELF is a real-time arcade hockey game wrapped in a season mode, with onlin
 2. **Online leagues:** friends share one season. Move league state server-side and let each owner play their own games.
 3. **Fights** (Blades of Steel): when the fight setting is on, two big hits in a row trigger a mini-game, and the loser gets 5 minutes.
 4. **Delayed penalties and pulling the goalie:** play continues until the penalized team touches the puck, plus an extra attacker late in games.
-5. **Line editor and trades:** drag players between lines, plus a simple trade screen using player overall ratings.
-6. **Offside toggle** for people who want the simulation feel.
+5. **Offside toggle** for people who want the simulation feel.
