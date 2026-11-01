@@ -46,6 +46,14 @@ Bindings live in `public/js/input.js` (saved in localStorage): two keys per acti
   - vibration on goals, posts, big hits and whistles (OPTIONS → VIBRATION)
   - the title demo runs at half frame rate on slower phones
 
+## Google Play
+
+- **Packaging:** a Trusted Web Activity built with Bubblewrap in GitHub Actions. The app is package `com.topshelfhockey.app` and opens `/?src=twa` in immersive full screen.
+- **Ownership:** the app proves it owns the site through `/.well-known/assetlinks.json`, built from `ANDROID_SHA256`. Without it, the app falls back to a Custom Tab with a URL bar.
+- **Play-app behaviour:** the game spots the Play app by the `android-app://` referrer or `?src=twa`, and remembers it for the session. It then hides the microphone studio, which keeps the Data safety answers to "no data collected", and the FULL SCREEN buttons, since the app is already full screen.
+- **Offline:** `/sw.js` is generated at server start. It precaches every game file, with a cache named after a hash of their contents, so each deploy rolls out cleanly. It then answers network first with a cache fallback, so online players always get the latest build. Online play shows an offline notice.
+- **The listing kit** lives in `store/`, and `test/pwa.mjs` keeps it within Play's limits.
+
 ## Broadcast booth
 
 - **The voices:** Mick Embers is a poetic play-by-play man with a big vocabulary who builds to the goal call. Eddie O'Shea is a folksy ex-player analyst ("you gotta get pucks to the net"). They are inspired by classic hockey broadcast pairings but are original characters with original lines.

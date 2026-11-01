@@ -86,12 +86,25 @@ Then open http://localhost:3000. The server reads `PORT` from the environment wh
 3. Railway detects Node and runs `npm start`. `railway.json` sets the health check to `/health`.
 4. Under **Settings → Networking**, click **Generate Domain**. WebSockets for online play work on Railway without extra setup.
 
-No environment variables are needed. Season saves live in each player's browser (localStorage), so there is nothing to persist on the server.
+No environment variables are needed to run the game. Season saves live in each player's browser (localStorage), so there is nothing to persist on the server. Two optional variables are used for Google Play:
+
+| Variable | What it's for |
+|---|---|
+| `ANDROID_SHA256` | Signing-key SHA-256 fingerprints from Play Console, comma separated. They're served at `/.well-known/assetlinks.json` so the Play app opens without a browser bar. |
+| `CONTACT_EMAIL` | The contact email shown on the privacy policy at `/privacy`. |
+| `ANDROID_PACKAGE` | Only if you change the package name (default `com.topshelfhockey.app`). |
+
+## Google Play
+
+TOP SHELF ships to Google Play as a Trusted Web Activity: an Android wrapper built by GitHub Actions (`.github/workflows/android.yml`, config in `android/twa-manifest.json`) that opens this site full screen. Game updates reach the Play app as soon as Railway deploys them. Everything for the listing is in [`store/`](store/): **[`store/PUBLISHING.md`](store/PUBLISHING.md)** is the step-by-step guide, `listing.md` has the store text, `data-safety.md` has the policy answers, and `graphics/` has the icon, feature graphic and screenshots.
+
+The game works offline (single player) through a service worker that `server.js` generates from `server/sw.js`, and it uses a self-hosted font (`public/fonts`, SIL Open Font License).
 
 ## Project layout
 
 ```
-server.js           Express static server + WebSocket endpoint (/ws) + /health
+server.js           Express static server + WebSocket endpoint (/ws) + /health, /sw.js, /privacy, asset links
+server/sw.js        Service worker template (offline play); server/privacy.html: privacy policy
 server/rooms.js     Online rooms: 4-letter codes, authoritative engine at 60 Hz, snapshots at 30 Hz
 shared/             Isomorphic game code, loaded by both the browser and the server
   engine.js         The game: skating physics, puck, goalies, AI, rules, penalties, shootout
@@ -113,9 +126,13 @@ public/
   js/controls-ui.js OPTIONS → CONTROLS screen
   js/gm-ui.js       Manage-team screens: lines, contracts, trades, free agents, re-sign, draft
   js/audio.js       Synthesized arena sounds: horn, organ, crowd, posts
+android/            twa-manifest.json: the Google Play app (Bubblewrap) config
+store/              Google Play listing kit and publishing guide
 test/
   headless.mjs      CPU-vs-CPU games plus a full simulated season, with invariant checks
   human-bot.mjs     Drives every control through the human input path
+  switch.mjs        Player switching, auto switch, skating feel, touch assist
+  pwa.mjs           Play / PWA readiness: manifest, icons, TWA config, listing limits, server routes
 ```
 
 ## Tests
@@ -134,6 +151,14 @@ node test/booth.mjs
 
 ```bash
 node test/gm.mjs
+```
+
+```bash
+node test/switch.mjs
+```
+
+```bash
+node test/pwa.mjs
 ```
 
 `node test/gm.mjs` plays two full seasons with off-seasons and checks the cap, trades, free agency, the draft and save upgrades. `node test/booth.mjs` checks the commentary script (ids, team slots, every category the game asks for). `npm test` plays CPU-vs-CPU games through the real engine and prints per-game averages (goals, shots, save percentage, penalties, one-timers). It asserts that the puck and players never leave the rink, that every game ends, and that a full season reaches a champion with consistent standings.

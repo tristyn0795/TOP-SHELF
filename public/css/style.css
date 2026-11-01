@@ -1,4 +1,6 @@
 /* TOP SHELF: 16-bit console look. Blue bevelled windows on a sheet of ice. */
+/* Press Start 2P (SIL Open Font License, fonts/OFL.txt), self-hosted so the game works offline */
+@font-face { font-family: 'Press Start 2P'; font-style: normal; font-weight: 400; font-display: swap; src: url(/fonts/PressStart2P-latin.woff2) format('woff2'); }
 :root {
   --sat: env(safe-area-inset-top, 0px); --sar: env(safe-area-inset-right, 0px); --sab: env(safe-area-inset-bottom, 0px); --sal: env(safe-area-inset-left, 0px);
   --ice: #dde8f3;
@@ -85,7 +87,7 @@ small { font-size: 7px; }
   position: relative; display: block; width: 100%; text-align: left;
   background: none; border: 0; color: var(--ink); font-size: 11px; padding: 8px 8px 8px 26px;
 }
-.mi small { display: block; color: var(--soft); margin-top: 5px; }
+.mi small { display: block; color: var(--soft); margin-top: 5px; line-height: 1.6; }
 .mi.nav-focus { color: var(--hl); background: rgba(255, 255, 255, 0.08); }
 .mi.nav-focus::before {
   content: '▶'; position: absolute; left: 7px; top: 8px; color: var(--red); text-shadow: 1px 1px 0 #000;

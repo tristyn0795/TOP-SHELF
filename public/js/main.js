@@ -294,6 +294,7 @@ function wireSource() {
   const gm = $('.game');
   input.onSource = null;
   if (!gm?.querySelector('.touch')) return;
+  if (isAndroidApp()) gm.querySelector('.tsys [data-a=fs]')?.remove(); // the Play app is already full screen
   input.assist = app.prefs.touchAssist !== false;
   input.onSource = (src) => { gm.classList.toggle('pad-mode', src !== 'touch'); relayout(); };
   input.source = null;
@@ -302,6 +303,7 @@ function wireSource() {
 }
 
 A.whatsNew = () => screen(whatsNewScreen);
+A.privacy = () => { location.href = '/privacy'; };
 
 function whatsNewScreen() {
   return {
@@ -330,7 +332,7 @@ function titleScreen() {
     mi('whatsNew', `WHAT'S NEW${load('seenNotes', '') !== LATEST ? ' <i class="new-tag">NEW</i>' : ''}`, `UPDATE ${LATEST} · ${NOTES[0].title}`),
     mi('options', 'OPTIONS'),
   );
-  if (isTouchDevice() && !standalone() && !document.fullscreenElement) {
+  if (isTouchDevice() && !standalone() && !isAndroidApp() && !document.fullscreenElement) {
     if (canFullscreen()) items.push(mi('fullscreen', 'FULL SCREEN', 'HIDE THE BROWSER BARS'));
     else if (isIOS()) items.push(mi('installHint', 'PLAY FULL SCREEN', 'ADD TOP SHELF TO YOUR HOME SCREEN'));
   }
@@ -1024,7 +1026,18 @@ function relayout() {
   relayoutRaf = requestAnimationFrame(() => { fitAttract(); fit(); });
 }
 
-const canFullscreen = () => !!document.fullscreenEnabled;
+// Inside the Google Play app (a Trusted Web Activity) the game is already full screen, and the
+// microphone studio is left out. The referrer only shows on the first page load, so remember it.
+const ANDROID_PACKAGE = 'com.topshelfhockey.app';
+const androidApp = (() => {
+  try {
+    if (document.referrer.startsWith(`android-app://${ANDROID_PACKAGE}`) || new URLSearchParams(location.search).get('src') === 'twa') sessionStorage.setItem('topshelf.twa', '1');
+    return sessionStorage.getItem('topshelf.twa') === '1';
+  } catch { return false; }
+})();
+const isAndroidApp = () => androidApp;
+
+const canFullscreen = () => !!document.fullscreenEnabled && !isAndroidApp();
 const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = () => matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone;
 
@@ -1229,7 +1242,7 @@ function netConnect(onOpen) {
     app.net = null;
     if (app.spec?.mode === 'online' && app.game) { stopGame(); onlineNotice('CONNECTION LOST.'); }
   });
-  ws.addEventListener('error', () => onlineNotice('COULD NOT REACH THE GAME SERVER.'));
+  ws.addEventListener('error', () => onlineNotice(navigator.onLine === false ? "YOU'RE OFFLINE. ONLINE PLAY NEEDS A CONNECTION." : 'COULD NOT REACH THE GAME SERVER.'));
 }
 
 function onlineScreen() {
@@ -1295,7 +1308,7 @@ A.codeType = (d) => {
   render();
 };
 
-A.online = () => { app.online.notice = ''; app.online.step = 'team'; screen(onlineScreen); };
+A.online = () => { app.online.notice = navigator.onLine === false ? "YOU'RE OFFLINE. ONLINE PLAY NEEDS A CONNECTION; EVERYTHING ELSE WORKS." : ''; app.online.step = 'team'; screen(onlineScreen); };
 A.onlineNext = () => { app.online.step = 'lobby'; screen(onlineScreen); };
 A.onlineTeam = () => { app.online.step = 'team'; screen(onlineScreen); };
 A.createRoom = () => {
@@ -1447,7 +1460,7 @@ function optionsScreen() {
           ${opt('STAND-IN VOICE', 'prefs', 'tts', p.tts)}
           ${opt('CAPTIONS', 'prefs', 'captions', p.captions)}
           <p class="note">MICK EMBERS and EDDIE O'SHEA call the action. Lines you haven't recorded yet are read by your browser's built-in voice.</p>
-          <div class="btnrow">${btn('studio', 'COMMENTARY STUDIO ▶', '', 'red')}</div>`)}
+          ${isAndroidApp() ? '' : `<div class="btnrow">${btn('studio', 'COMMENTARY STUDIO ▶', '', 'red')}</div>`}`)}
         ${win('CONTROLS', `<p class="note">Rebind every key for single player and couch players 1 and 2, plus gamepad buttons.</p>${controlsHtml(1)}
           <div class="btnrow">${btn('controls', 'CHANGE CONTROLS ▶', '', 'red')}</div>`)}
         ${lg ? win(`SEASON · ${esc(T(lg.userTeam).name).toUpperCase()}`, `
@@ -1457,7 +1470,7 @@ function optionsScreen() {
           ${opt('ICING', 'league', 'icing', lg.settings.icing)}
           <div class="btnrow">${btn('deleteLeague', 'DELETE SEASON', '', 'mini')}</div>`) : ''}
       </div>
-      <div class="btnrow">${btn('optBackOut', 'BACK', '', 'default')}</div>`,
+      <div class="btnrow">${btn('optBackOut', 'BACK', '', 'default')}${btn('privacy', 'PRIVACY POLICY')}</div>`,
     back: A.optBackOut,
   };
 }
@@ -1597,11 +1610,18 @@ const controls = createControls({
 function controlsScreen() { return controls.screen(); }
 A.controls = () => { controls.open(); screen(controlsScreen); };
 const gmui = createGM({ A, render, screen, win, btn, mi, esc, crest, persist, league: () => app.league, seasonScreen });
-A.studio = () => { audio.unlock(); voice.refreshLocal().then(() => screen(studioScreen)); };
+A.studio = () => { if (isAndroidApp()) return; audio.unlock(); voice.refreshLocal().then(() => screen(studioScreen)); };
 
 A.showSkipLine = () => app.show?.skipLine();
 A.showSkip = () => app.show?.finish();
 
 // ---------------------------------------------------------------- boot
-if (location.hash === '#studio') screen(studioScreen);
+// home-screen shortcuts (manifest "shortcuts") open straight into a mode
+const go = new URLSearchParams(location.search).get('go');
+if (location.hash === '#studio' && !isAndroidApp()) screen(studioScreen);
+else if (go === 'continue' && app.league) { app.titleOpen = true; A.continue(); }
+else if (go === 'exhibition') { app.titleOpen = true; A.exhibition(); }
 else screen(titleScreen);
+
+// offline play (and what the Play Store expects of an app): cache the game in a service worker
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));

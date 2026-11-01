@@ -2,6 +2,16 @@
 // shows a NEW tag until the player has opened the screen since the newest entry.
 export const NOTES = [
   {
+    v: '1.7',
+    title: 'PLAY OFFLINE',
+    items: [
+      'TOP SHELF is getting ready for Google Play, and now runs like an app.',
+      'Play offline: seasons, exhibitions and couch games all work without a connection. Online play still needs one.',
+      'Add TOP SHELF to your home screen for app shortcuts straight into your season or an exhibition.',
+      'Privacy policy under OPTIONS. No accounts, ads or tracking.',
+    ],
+  },
+  {
     v: '1.6',
     title: 'BEST WITH A CONTROLLER',
     items: [

@@ -3,3 +3,9 @@ node_modules/
 *.log
 .env
 *.zip
+
+# Android signing keys and generated project
+*.keystore
+*.jks
+android/*
+!android/twa-manifest.json
