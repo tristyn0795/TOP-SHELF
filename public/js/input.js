@@ -256,9 +256,10 @@ export function mountTouch(root, input) {
     let dx = (t.clientX - o.x) / R, dy = (t.clientY - o.y) / R;
     const l = Math.hypot(dx, dy);
     if (l > 1) { dx /= l; dy /= l; }
-    const dead = l < 0.18;
-    input.touch.mx = dead ? 0 : dx;
-    input.touch.my = dead ? 0 : dy;
+    // full speed from 60% of the way out, so a short thumb push is enough
+    const n = Math.min(l, 1), m = clampN((n - 0.12) / 0.48, 0, 1);
+    input.touch.mx = n > 0 ? (dx / n) * m : 0;
+    input.touch.my = n > 0 ? (dy / n) * m : 0;
     knob.style.transform = `translate(${dx * R}px, ${dy * R}px)`;
   };
   zone.addEventListener('touchstart', (e) => {

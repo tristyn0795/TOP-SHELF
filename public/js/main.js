@@ -28,7 +28,7 @@ const app = {
   league: (() => { const lg = load('franchise'); if (lg) L.upgradeLeague(lg); return lg; })(),
   prefs: Object.assign({
     periodLen: 180, difficulty: 'pro', penalties: true, icing: true, replays: true,
-    commentary: true, pregame: true, postgame: true, tts: true, captions: true, vibrate: true,
+    commentary: true, pregame: true, postgame: true, tts: true, captions: true, vibrate: true, autoSwitch: true,
   }, load('prefs', {})),
   game: null,
   attract: null,
@@ -60,6 +60,7 @@ const OPTS = {
   tts: [[true, 'ON'], [false, 'OFF']],
   captions: [[true, 'ON'], [false, 'OFF']],
   vibrate: [[true, 'ON'], [false, 'OFF']],
+  autoSwitch: [[true, 'ON'], [false, 'OFF']],
   seasonLength: L.SEASON_LENGTHS.map((x) => [x, `${x} GAMES`]),
   seriesLen: L.SERIES_LENGTHS.map((x) => [x, `BEST OF ${x}`]),
   ctrlA: [['cpu', 'CPU'], ['p1', 'PLAYER 1'], ['p2', 'PLAYER 2']],
@@ -779,7 +780,7 @@ function controlsHtml(n = 1) {
       ${row('PASS / SWITCH', 'pass')}${row('SHOOT / CHECK', 'shoot')}${row('DEKE / POKE', 'deke')}${row('SPRINT', 'sprint')}</table>`;
   }
   return `<table class="tbl keys"><tr><th class="l"></th><th>WITH PUCK</th><th>WITHOUT</th><th>KEYS</th><th>PAD</th></tr>
-    <tr><td class="l">BUTTON 1</td><td>PASS</td><td>SWITCH</td><td>${keysFor('solo', 'pass')}</td><td>${padFor('pass')}</td></tr>
+    <tr><td class="l">BUTTON 1</td><td>PASS</td><td>SWITCH<small>TAP AGAIN TO CYCLE</small></td><td>${keysFor('solo', 'pass')}</td><td>${padFor('pass')}</td></tr>
     <tr><td class="l">BUTTON 2</td><td>SHOOT<small>HOLD = SLAPPER</small></td><td>CHECK</td><td>${keysFor('solo', 'shoot')}</td><td>${padFor('shoot')}</td></tr>
     <tr><td class="l">BUTTON 3</td><td>DEKE</td><td>POKE</td><td>${keysFor('solo', 'deke')}</td><td>${padFor('deke')}</td></tr>
     <tr><td class="l">SPRINT</td><td colspan="2">BURNS ENERGY</td><td>${keysFor('solo', 'sprint')}</td><td>${padFor('sprint')}</td></tr>
@@ -789,7 +790,7 @@ function controlsHtml(n = 1) {
 function touchLegend() {
   return `<table class="tbl keys"><tr><th class="l">TOUCH</th><th>WITH PUCK</th><th>WITHOUT</th></tr>
     <tr><td class="l">LEFT THUMB</td><td colspan="2">DRAG ANYWHERE ON THE LEFT TO SKATE</td></tr>
-    <tr><td class="l">PASS</td><td>PASS</td><td>SWITCH</td></tr>
+    <tr><td class="l">PASS</td><td>PASS</td><td>SWITCH<small>TAP AGAIN TO CYCLE</small></td></tr>
     <tr><td class="l">SHOOT</td><td>SHOOT<small>HOLD = SLAPPER</small></td><td>CHECK</td></tr>
     <tr><td class="l">DEKE</td><td>DEKE</td><td>POKE</td></tr>
     <tr><td class="l">SPRINT</td><td colspan="2">HOLD WHILE SKATING · BURNS ENERGY</td></tr></table>`;
@@ -1032,7 +1033,7 @@ function launch(sp) {
     canvas: $('#cv'), input, audio, onEvents: buzz,
     teams: sp.teams.map((id, i) => L.gameTeam(sp.rosters, id, i === sp.homeIdx)),
     teamDefs: sp.teams.map((id) => T(id)),
-    homeIdx: sp.homeIdx, cfg: sp.cfg, humans: sp.humans, replays: app.prefs.replays,
+    homeIdx: sp.homeIdx, cfg: sp.cfg, humans: sp.humans.map((h) => ({ ...h, auto: app.prefs.autoSwitch !== false })), replays: app.prefs.replays,
     onEnd: (res) => sp.onEnd(res),
     board: (snap) => boardRows(sp, snap),
     director: app.prefs.commentary !== false ? new Director({ voice, teams: sp.teams, playoff: sp.cfg.ot === 'playoff' }) : null,
@@ -1325,7 +1326,7 @@ const HOWTO = [
     <p><b>ONE-TIMER:</b> hit SHOOT while your pass is still on its way. The receiver fires on arrival, before the goalie can slide across.</p>
     <p><b>PICK YOUR SPOT:</b> hold left or right as you release to aim at a post. Hit the top of the net for a TOP SHELF.</p>
     <p><b>DEKE</b> sidesteps checks and poke checks. Carry it behind the net and tuck it in at the far post for a wraparound.</p>`],
-  ['WITHOUT THE PUCK', () => `<p><b>SWITCH</b> jumps to the skater nearest the puck.</p>
+  ['WITHOUT THE PUCK', () => `<p><b>SWITCH</b> jumps to your best defender: the skater between the puck and your net. Tap it again quickly to cycle through every skater. With AUTO SWITCH on (OPTIONS), you're moved to the goal-side man when the play gets past you.</p>
     <p><b>CHECK</b> throws your weight forward. Catch the puck carrier and he's flattened and the puck is loose. Lay out someone without the puck and it's interference.</p>
     <p><b>POKE</b> stabs at the puck. Get the stick instead of the puck and you'll sit for hooking or tripping.</p>`],
   ['RULES', () => `<p>Three periods. Tied after regulation? 3-on-3 sudden death, then a shootout. Playoff overtime is 5-on-5 until somebody scores.</p>
@@ -1362,6 +1363,7 @@ function optionsScreen() {
         ${win('GAME', `
           ${opt('SOUND', 'audio', 'muted', audio.muted)}
           ${opt('GOAL REPLAYS', 'prefs', 'replays', p.replays)}
+          ${opt('AUTO SWITCH', 'prefs', 'autoSwitch', p.autoSwitch)}
           ${navigator.vibrate ? opt('VIBRATION', 'prefs', 'vibrate', p.vibrate) : ''}
           ${opt('PERIOD LENGTH', 'prefs', 'periodLen', p.periodLen)}
           ${opt('DIFFICULTY', 'prefs', 'difficulty', p.difficulty)}

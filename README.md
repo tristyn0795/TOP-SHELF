@@ -70,6 +70,7 @@ Then open http://localhost:3000. The server reads `PORT` from the environment wh
 | Sprint | | | Shift / Space | RB / RT |
 | Pause | | | Esc / P | Start |
 
+- **Switching:** without the puck, PASS jumps to your best-placed skater, usually the defender between the puck and your net. Tap it again within a second to cycle through everyone. AUTO SWITCH (OPTIONS → GAME, on by default) moves you to the goal-side man when a rush gets past you, but never within 1.5 seconds of your own switch.
 - **One-timer:** press shoot while your pass is still travelling.
 - **Aim:** hold left or right as you release a shot to pick a post.
 - **Faceoffs:** press pass or shoot as the puck drops to win the draw.

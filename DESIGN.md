@@ -20,6 +20,12 @@ TOP SHELF is a real-time arcade hockey game wrapped in a season mode, with onlin
 
 Bindings live in `public/js/input.js` (saved in localStorage): two keys per action for single player and for each couch player, plus gamepad buttons. Binding a key moves it off any other action in that layout. Menus always use arrows/Enter/Esc and Esc always pauses, so a bad binding can't lock anyone out.
 
+## Switching and feel
+
+- **Switch target** (`switchRank` in `shared/engine.js`): when defending, skaters are ranked by distance to a point just ahead of the carrier, moved 30% of the way toward our net. Anyone who isn't goal-side gets a +25 ft penalty, and a stunned skater +15 ft. Otherwise they're ranked by distance to where the puck will be. A press more than 1 s after the last one takes the best skater (the second best if you already have him). Quick repeat presses walk down a frozen copy of the list, so both defenders are always reachable.
+- **Auto switch:** a turnover puts you on the best-ranked skater. With AUTO SWITCH on, so do the other team's passes and getting beaten (you're no longer goal-side and a goal-side teammate is 12+ ft better placed). Auto switch waits 1.5 s after a manual switch.
+- **Responsiveness:** the skater you control gets 1.35× acceleration, a 2.4× brake when reversing (CPU 1.6×), a 15 rad/s turn (CPU 11) and less glide. Turning around from full speed takes 0.63 s instead of 0.98 s. CPU physics, and so the tuning numbers, are unchanged. The touch stick reaches full speed at 60% of its radius.
+
 ## Phones and foldables
 
 - **Game layout** (`fit()` in `public/js/main.js`): it measures the real screen (including safe areas and fold segments) and picks one of four layouts.

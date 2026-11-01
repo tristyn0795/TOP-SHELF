@@ -108,7 +108,7 @@ export function createGame(opts) {
   s.pace = clamp(Math.sqrt(180 / (cfg.periodLen / s.clockRate)), 0.4, 1);
   const humanTeams = new Set(humans.map((h) => h.team));
   s.teams = opts.teams.map((t, i) => makeTeam(s, t, i, humanTeams.size > 0 && !humanTeams.has(i)));
-  s.humans = humans.map((h) => ({ team: h.team, sk: -1, prev: {}, inp: {}, edge: {} }));
+  s.humans = humans.map((h) => ({ team: h.team, auto: h.auto !== false, sk: -1, swT: -9, rank: null, prev: {}, inp: {}, edge: {} }));
   s.goalies = [0, 1].map((i) => makeGoalie(s, i));
   s.puck = newPuck();
   setupFaceoff(s, 0, 0);
@@ -496,8 +496,10 @@ function takePuck(s, k) {
   p.z = 0; p.vz = 0;
   if (prevTeam !== k.team) {
     p.touches = [];
-    for (const h of s.humans) if (h.team !== k.team) h.sk = -1; // auto-switch defender
   }
+  // the other team has a new puck carrier (a turnover or one of their passes): put the human
+  // on the defender best placed to stop him
+  if (p.touches[0]?.pid !== k.pid) for (const h of s.humans) if (h.team !== k.team) autoPick(s, h, k, prevTeam !== k.team);
   if (p.touches[0]?.pid !== k.pid) p.touches.unshift({ pid: k.pid, team: k.team });
   if (p.touches.length > 4) p.touches.length = 4;
   p.lastTeam = k.team;
@@ -521,17 +523,19 @@ function moveSkater(s, k, mv, dt) {
   if (s.puck.owner === k.id) top *= 0.94;
   if (k.charge >= 0) top *= 0.55;
   if (sprint) top *= 1.16;
-  const acc = 26 + k.r.spd * 0.22;
+  // the skater you control is a bit sharper than the CPU's: quicker starts, stops and turns
+  const you = k.ctrl >= 0;
+  const acc = (26 + k.r.spd * 0.22) * (you ? 1.35 : 1);
   if (k.stun <= 0 && (mag > 0.05 || mv.active)) {
     const tvx = mx * top, tvy = my * top;
     let dvx = tvx - k.vx, dvy = tvy - k.vy;
     const dl = hyp(dvx, dvy);
-    const brake = k.vx * tvx + k.vy * tvy < 0 ? 1.6 : 1;
+    const brake = k.vx * tvx + k.vy * tvy < 0 ? (you ? 2.4 : 1.6) : 1;
     const maxDv = acc * dt * brake;
     if (dl > maxDv) { dvx *= maxDv / dl; dvy *= maxDv / dl; }
     if (k.lungeT <= 0 && k.dekeT <= 0) { k.vx += dvx; k.vy += dvy; }
   } else {
-    const f = Math.exp(-(k.stun > 0 ? 2.2 : 0.9) * dt);
+    const f = Math.exp(-(k.stun > 0 ? 2.2 : you ? 1.4 : 0.9) * dt);
     k.vx *= f; k.vy *= f;
   }
   k.x += k.vx * dt; k.y += k.vy * dt;
@@ -539,7 +543,8 @@ function moveSkater(s, k, mv, dt) {
     let ta = null;
     if (mag > 0.2) ta = Math.atan2(my, mx);
     else if (hyp(k.vx, k.vy) > 4) ta = Math.atan2(k.vy, k.vx);
-    if (ta != null) k.a += clamp(angDiff(k.a, ta), -11 * dt, 11 * dt);
+    const turn = you ? 15 : 11;
+    if (ta != null) k.a += clamp(angDiff(k.a, ta), -turn * dt, turn * dt);
   }
   const sp = hyp(k.vx, k.vy) / 32;
   let drain = (0.006 + 0.014 * sp + (sprint ? 0.03 : 0)) * (1.25 - k.r.end * 0.005);
@@ -1177,6 +1182,43 @@ function nearestTo(s, team, x, y, exclude) {
   return best || exclude || null;
 }
 
+// Who should the switch button go to? Defending, the best choice is a skater between the
+// carrier and our net, near where the carrier is heading; otherwise whoever is nearest the puck.
+function switchAim(s, team) {
+  const p = s.puck, car = byId(s, p.owner);
+  const dir = s.teams[team].dir;
+  const threat = car ? car.team !== team : p.pass ? p.pass.team !== team : (p.lastTeam !== team && p.vx * dir < -8);
+  if (!threat) return { defend: false, x: p.x + p.vx * 0.25, y: p.y + p.vy * 0.25 };
+  const src = car || p;
+  const fx = src.x + src.vx * 0.35, fy = src.y + src.vy * 0.35;
+  const nx = -dir * R.GX;
+  return { defend: true, car: src, dir, x: fx + (nx - fx) * 0.3, y: fy * 0.7 };
+}
+
+function switchScore(k, aim) {
+  let d = hyp(k.x - aim.x, k.y - aim.y) + (k.stun > 0 ? 15 : 0);
+  if (aim.defend && (k.x - aim.car.x) * -aim.dir <= 0) d += 25;
+  return d;
+}
+
+function switchRank(s, team) {
+  const aim = switchAim(s, team);
+  return s.skaters.filter((k) => k.team === team)
+    .map((k) => ({ k, d: switchScore(k, aim) }))
+    .sort((a, b) => a.d - b.d).map((x) => x.k);
+}
+
+const goalSide = (k, aim) => !aim.defend || (k.x - aim.car.x) * -aim.dir > 0;
+
+// Automatic switch when the other team gets a new carrier. A turnover always moves you (as
+// before, but to the right man); their passes only move you if auto switch is on and you
+// haven't just switched yourself.
+function autoPick(s, h, car, turnover) {
+  if (!turnover && (!h.auto || s.time - h.swT < 1.5)) return;
+  const best = switchRank(s, h.team)[0];
+  if (best) h.sk = best.id;
+}
+
 function updateControl(s) {
   for (const k of s.skaters) k.ctrl = -1;
   const p = s.puck;
@@ -1185,10 +1227,25 @@ function updateControl(s) {
     let cur = byId(s, h.sk);
     if (car && car.team === h.team) cur = car;
     else if (h.edge.passP) {
-      cur = nearestTo(s, h.team, p.x, p.y, cur);
+      // first press: the best man (or the next best if you already have him);
+      // quick repeat presses walk down the same list, so every skater is reachable
+      const burst = s.time - h.swT < 1.0 && h.rank;
+      if (!burst) h.rank = switchRank(s, h.team).map((k) => k.id);
+      const live = h.rank.filter((id) => byId(s, id));
+      let j = live.indexOf(cur?.id);
+      j = burst ? (j + 1) % live.length : (j === 0 ? 1 : 0);
+      cur = byId(s, live[j % live.length]) || cur;
+      h.swT = s.time;
       h.edge.passP = false;
+    } else if (h.auto && cur && s.time - h.swT > 1.5) {
+      // you've been beaten: hand control to the defender who is still goal-side
+      const aim = switchAim(s, h.team);
+      if (aim.defend && !goalSide(cur, aim)) {
+        const best = switchRank(s, h.team)[0];
+        if (best && best !== cur && goalSide(best, aim) && switchScore(best, aim) + 12 < switchScore(cur, aim)) cur = best;
+      }
     }
-    if (!cur || cur.team !== h.team) cur = nearestTo(s, h.team, p.x, p.y);
+    if (!cur || cur.team !== h.team) cur = switchRank(s, h.team)[0] || nearestTo(s, h.team, p.x, p.y);
     h.sk = cur ? cur.id : -1;
     if (cur) cur.ctrl = i;
   });

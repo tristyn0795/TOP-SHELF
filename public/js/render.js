@@ -289,6 +289,14 @@ export class Renderer {
     for (const k of sk) this.drawSkater(k, ctl.indexOf(k[0]), dt);
 
     this.drawPuck(snap);
+    // a quick ring pops on the skater you just switched to
+    this.lastCtl ||= [];
+    this.pulse ||= [];
+    ctl.forEach((id, ci) => {
+      if (this.lastCtl[ci] !== undefined && this.lastCtl[ci] !== id && !opts.replay) this.pulse[ci] = 0.3;
+      this.lastCtl[ci] = id;
+      if (this.pulse[ci] > 0) this.pulse[ci] -= dt;
+    });
     for (const k of sk) {
       const ci = ctl.indexOf(k[0]);
       if (ci >= 0) this.drawMarker(k, ci);
@@ -398,6 +406,15 @@ export class Renderer {
       g.fillStyle = col;
       g.fillRect(X - 3, Y - 3, 6, 6);
       return;
+    }
+    const pl = this.pulse?.[ci] || 0;
+    if (pl > 0) {
+      const r = Math.round(5 + (1 - pl / 0.3) * 9);
+      g.globalAlpha = Math.min(1, pl / 0.15);
+      g.fillStyle = col;
+      g.fillRect(X - r, Y - r, r * 2, 1); g.fillRect(X - r, Y + r, r * 2 + 1, 1);
+      g.fillRect(X - r, Y - r, 1, r * 2); g.fillRect(X + r, Y - r, 1, r * 2);
+      g.globalAlpha = 1;
     }
     const bob = Math.round(Math.sin(this.t * 8));
     // NHL '94 style star under the player
