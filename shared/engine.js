@@ -1259,7 +1259,7 @@ function humanSkater(s, k, h, dt) {
     if (k.charge >= 0) {
       k.charge = Math.min(1, k.charge + dt);
       if (e.shootR) {
-        const aimY = my < -0.3 ? -2.3 : my > 0.3 ? 2.3 : null;
+        const aimY = my < -0.3 ? -2.3 : my > 0.3 ? 2.3 : h.assist ? farSide(s, k) : null;
         doShot(s, k, k.charge < 0.18 ? 0 : clamp(k.charge / 0.8, 0.25, 1), { aimY });
       }
     } else if (e.passP) doPass(s, k, mx, my);
@@ -1280,11 +1280,35 @@ function humanSkater(s, k, h, dt) {
       } else if (near) {
         takePuck(s, k);
         if (p.owner === k.id) doShot(s, k, 0);
+      } else if (h.assist) {
+        const t = assistTarget(s, k, 12);
+        doCheck(s, k, t ? t.x - k.x : mx, t ? t.y - k.y : my);
       } else doCheck(s, k, mx, my);
     }
-    if (e.dekeP) doPoke(s, k);
+    if (e.dekeP) {
+      const t = h.assist && assistTarget(s, k, 7);
+      if (t && t.id === p.owner) k.a = Math.atan2(t.y - k.y, t.x - k.x);
+      doPoke(s, k);
+    }
   }
   return { mx, my, sprint: !!inp.sprint };
+}
+
+// Touch assist (the on-screen stick is imprecise): shots go to the far side of the goalie,
+// checks and poke checks home in on a nearby opponent, preferring the puck carrier.
+function farSide(s, k) {
+  const g = s.goalies[1 - k.team];
+  return g.y > 0.3 ? -2.2 : g.y < -0.3 ? 2.2 : k.y > 0 ? -2.2 : 2.2;
+}
+
+function assistTarget(s, k, range) {
+  let best = null, bd = range;
+  for (const o of s.skaters) {
+    if (o.team === k.team) continue;
+    const d = hyp(o.x - k.x, o.y - k.y) - (o.id === s.puck.owner ? 4 : 0);
+    if (d < bd) { bd = d; best = o; }
+  }
+  return best;
 }
 
 function readInputs(s, inputs) {
@@ -1300,6 +1324,7 @@ function readInputs(s, inputs) {
       dekeP: cnt('nd') || (!!inp.deke && !pv.deke),
     };
     h.inp = inp;
+    h.assist = !!inp.as;
     h.prev = { np: inp.np, ns: inp.ns, nd: inp.nd, pass: !!inp.pass, shoot: !!inp.shoot, deke: !!inp.deke };
   });
 }

@@ -16,6 +16,7 @@ import { Director } from './booth/director.js';
 import { Show, pregameSteps, postgameSteps, makePicker } from './booth/shows.js';
 import { createStudio } from './booth/studio.js';
 import { createGM } from './gm-ui.js';
+import { NOTES, LATEST } from './notes.js';
 
 const $app = document.getElementById('app');
 const $ = (sel) => document.querySelector(sel);
@@ -28,7 +29,7 @@ const app = {
   league: (() => { const lg = load('franchise'); if (lg) L.upgradeLeague(lg); return lg; })(),
   prefs: Object.assign({
     periodLen: 180, difficulty: 'pro', penalties: true, icing: true, replays: true,
-    commentary: true, pregame: true, postgame: true, tts: true, captions: true, vibrate: true, autoSwitch: true,
+    commentary: true, pregame: true, postgame: true, tts: true, captions: true, vibrate: true, autoSwitch: true, touchAssist: true,
   }, load('prefs', {})),
   game: null,
   attract: null,
@@ -61,6 +62,7 @@ const OPTS = {
   captions: [[true, 'ON'], [false, 'OFF']],
   vibrate: [[true, 'ON'], [false, 'OFF']],
   autoSwitch: [[true, 'ON'], [false, 'OFF']],
+  touchAssist: [[true, 'ON'], [false, 'OFF']],
   seasonLength: L.SEASON_LENGTHS.map((x) => [x, `${x} GAMES`]),
   seriesLen: L.SERIES_LENGTHS.map((x) => [x, `BEST OF ${x}`]),
   ctrlA: [['cpu', 'CPU'], ['p1', 'PLAYER 1'], ['p2', 'PLAYER 2']],
@@ -143,6 +145,7 @@ function stopGame() {
   input.active = false;
   input.onPause = null;
   input.onFullscreen = null;
+  input.onSource = null;
   document.removeEventListener('keydown', speedKey);
   clearFit();
   holdWake(false);
@@ -255,6 +258,66 @@ function drawLogo() {
   g.fillRect(156, 28, 6, 3);
 }
 
+// ---------------------------------------------------------------- controllers
+
+const padConnected = () => [...(navigator.getGamepads?.() || [])].some(Boolean);
+const PAD_ICON = '<svg class="pad-ico" viewBox="0 0 16 10" shape-rendering="crispEdges" aria-hidden="true"><path fill="currentColor" d="M3 0h10v1h1v1h1v4h1v3h-1v1h-3v-1h-1v-1h-6v1h-1v1h-3v-1h-1v-3h1v-4h1v-1h1z"/><path fill="#0a1a6e" d="M3 3h1v1h1v1h-1v1h-1v-1h-1v-1h1zM11 3h1v1h-1zM13 4h1v1h-1z"/></svg>';
+
+function padHint() {
+  return padConnected()
+    ? `<span class="ok">${PAD_ICON} CONTROLLER CONNECTED</span>`
+    : `${PAD_ICON} BEST PLAYED WITH A CONTROLLER<small>${isTouchDevice() ? 'PAIR ONE OVER BLUETOOTH' : 'PLUG ONE IN'}, THEN PRESS ANY BUTTON</small>`;
+}
+
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}
+
+window.addEventListener('gamepadconnected', () => {
+  toast(`${PAD_ICON} CONTROLLER CONNECTED`);
+  const h = document.getElementById('padHint');
+  if (h) h.innerHTML = padHint();
+});
+window.addEventListener('gamepaddisconnected', () => {
+  toast(`${PAD_ICON} CONTROLLER DISCONNECTED`);
+  const h = document.getElementById('padHint');
+  if (h) h.innerHTML = padHint();
+  if (!padConnected() && $('.game .touch')) input.setSource('touch');
+});
+
+// On a touch screen, the touch buttons step aside while a controller (or keyboard) is in use.
+function wireSource() {
+  const gm = $('.game');
+  input.onSource = null;
+  if (!gm?.querySelector('.touch')) return;
+  input.assist = app.prefs.touchAssist !== false;
+  input.onSource = (src) => { gm.classList.toggle('pad-mode', src !== 'touch'); relayout(); };
+  input.source = null;
+  input.setSource(padConnected() ? 'pad' : 'touch');
+  gm.addEventListener('touchstart', () => input.setSource('touch'), { passive: true });
+}
+
+A.whatsNew = () => screen(whatsNewScreen);
+
+function whatsNewScreen() {
+  return {
+    html: `
+      <header class="topbar"><h1>WHAT'S NEW</h1><span>PATCH NOTES</span></header>
+      <div class="pick-one">
+        ${win('TIP', `<p class="pad-tip">${PAD_ICON} TOP SHELF PLAYS BEST WITH A CONTROLLER.</p>
+          <p class="note">Any controller your browser supports works: plug it in, or pair it over Bluetooth on your phone, then press any button. Change its buttons under OPTIONS > CONTROLS. The touch controls work too, with aim help from TOUCH ASSIST.</p>`)}
+        ${NOTES.map((n, i) => win(`${i === 0 ? 'NEW · ' : ''}UPDATE ${n.v}`, `<h3 class="note-title">${n.title}</h3><ul class="notes">${n.items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`)).join('')}
+        <div class="btnrow center">${btn('home', 'BACK', '', 'default')}</div>
+      </div>`,
+    after: () => save('seenNotes', LATEST),
+    back: A.home,
+  };
+}
+
 function titleScreen() {
   const lg = app.league;
   const items = [];
@@ -264,6 +327,7 @@ function titleScreen() {
     mi('exhibition', 'EXHIBITION', 'ONE GAME · 1P · 2P · CPU'),
     mi('online', 'ONLINE', 'CHALLENGE A FRIEND BY CODE'),
     mi('howto', 'INSTRUCTIONS'),
+    mi('whatsNew', `WHAT'S NEW${load('seenNotes', '') !== LATEST ? ' <i class="new-tag">NEW</i>' : ''}`, `UPDATE ${LATEST} · ${NOTES[0].title}`),
     mi('options', 'OPTIONS'),
   );
   if (isTouchDevice() && !standalone() && !document.fullscreenElement) {
@@ -279,6 +343,7 @@ function titleScreen() {
         ${app.titleOpen
           ? win('MAIN MENU', `<div class="menu-list">${items.join('')}</div>`, 'title-menu')
           : `<button class="press-start" data-act="pressStart"><span class="blink">PRESS START</span></button>`}
+        <div class="pad-hint" id="padHint">${padHint()}</div>
         <div class="legal">© 2026 TOP SHELF · ALL CLUBS AND PLAYERS FICTIONAL · NOT AFFILIATED WITH ANY LEAGUE</div>
       </div>`,
     after: () => { drawLogo(); startAttract(); },
@@ -735,7 +800,7 @@ function exhibitionScreen() {
         ${opt('DIFFICULTY', 'prefs', 'difficulty', p.difficulty)}
         ${opt('PENALTIES', 'prefs', 'penalties', p.penalties)}
         ${opt('ICING', 'prefs', 'icing', p.icing)}</div>
-        <p class="note">Set CONTROL to PLAYER 1 / PLAYER 2 on either club. Two players share the keyboard (keys under OPTIONS → CONTROLS) or use two gamepads. CPU on both sides is a demo game; TAB fast-forwards.</p>`)}
+        <p class="note">Set CONTROL to PLAYER 1 / PLAYER 2 on either club. Two players share the keyboard (keys under OPTIONS > CONTROLS) or use two gamepads. CPU on both sides is a demo game; TAB fast-forwards.</p>`)}
       <div class="btnrow">${btn('faceOff', 'FACE OFF ▶', '', 'red')}${btn('home', 'BACK')}</div>`,
     back: A.home,
     prefer: '.tp-main[data-slot="away"]',
@@ -784,7 +849,7 @@ function controlsHtml(n = 1) {
     <tr><td class="l">BUTTON 2</td><td>SHOOT<small>HOLD = SLAPPER</small></td><td>CHECK</td><td>${keysFor('solo', 'shoot')}</td><td>${padFor('shoot')}</td></tr>
     <tr><td class="l">BUTTON 3</td><td>DEKE</td><td>POKE</td><td>${keysFor('solo', 'deke')}</td><td>${padFor('deke')}</td></tr>
     <tr><td class="l">SPRINT</td><td colspan="2">BURNS ENERGY</td><td>${keysFor('solo', 'sprint')}</td><td>${padFor('sprint')}</td></tr>
-    <tr><td class="l">SKATE</td><td colspan="2">${['up', 'left', 'down', 'right'].map((a) => keysFor('solo', a)).join(' · ')}</td><td colspan="2">CHANGE IN OPTIONS → CONTROLS</td></tr></table>`;
+    <tr><td class="l">SKATE</td><td colspan="2">${['up', 'left', 'down', 'right'].map((a) => keysFor('solo', a)).join(' · ')}</td><td colspan="2">CHANGE IN OPTIONS > CONTROLS</td></tr></table>`;
 }
 
 function touchLegend() {
@@ -793,7 +858,8 @@ function touchLegend() {
     <tr><td class="l">PASS</td><td>PASS</td><td>SWITCH<small>TAP AGAIN TO CYCLE</small></td></tr>
     <tr><td class="l">SHOOT</td><td>SHOOT<small>HOLD = SLAPPER</small></td><td>CHECK</td></tr>
     <tr><td class="l">DEKE</td><td>DEKE</td><td>POKE</td></tr>
-    <tr><td class="l">SPRINT</td><td colspan="2">HOLD WHILE SKATING · BURNS ENERGY</td></tr></table>`;
+    <tr><td class="l">SPRINT</td><td colspan="2">PUSH THE STICK TO ITS RIM, OR HOLD SPRINT · BURNS ENERGY</td></tr></table>
+    <p class="pad-tip">${PAD_ICON} BEST WITH A CONTROLLER: PAIR ONE AND PRESS ANY BUTTON.</p>`;
 }
 
 function versusScreen(sp) {
@@ -812,7 +878,8 @@ function versusScreen(sp) {
       ${win('', `<div class="versus">${side(away, 'AWAY')}<div class="cmps">${cmp}</div>${side(home, 'HOME')}</div>
         <p class="note center">${per} PERIODS${fast}${sp.cfg.ot === 'playoff' ? ' · SUDDEN-DEATH OVERTIME' : ' · 3-ON-3 OT + SHOOTOUT'}${sp.cfg.penalties ? '' : ' · NO PENALTIES'}${sp.cfg.icing ? '' : ' · NO ICING'}</p>
         <p class="note center">${esc(Aw.name)}: ${esc(PERKS[Aw.perk].desc)} &nbsp;|&nbsp; ${esc(H.name)}: ${esc(PERKS[H.perk].desc)}</p>`, 'vs-win')}
-      ${sp.humans.length ? win('CONTROLS', `${controlsHtml(sp.humans.length)}<p class="note">${sp.humans.length === 2 ? 'P1 attacks UP the ice, P2 attacks DOWN.' : 'You attack UP the ice.'} Win faceoffs by pressing PASS or SHOOT as the puck drops. One-timer: press SHOOT while your pass is still sliding.</p>`) : win('', '<p class="note center">CPU VS CPU. PRESS TAB TO FAST-FORWARD.</p>')}
+      ${sp.humans.length ? win('CONTROLS', `${controlsHtml(sp.humans.length)}<p class="note">${sp.humans.length === 2 ? 'P1 attacks UP the ice, P2 attacks DOWN.' : 'You attack UP the ice.'} Win faceoffs by pressing PASS or SHOOT as the puck drops. One-timer: press SHOOT while your pass is still sliding.</p>
+        <p class="pad-tip">${padConnected() ? `${PAD_ICON} CONTROLLER READY.` : `${PAD_ICON} TIP: TOP SHELF PLAYS BEST WITH A CONTROLLER. ${isTouchDevice() ? 'PAIR ONE OVER BLUETOOTH' : 'PLUG ONE IN'}, THEN PRESS ANY BUTTON.`}</p>`) : win('', '<p class="note center">CPU VS CPU. PRESS TAB TO FAST-FORWARD.</p>')}
       <div class="btnrow">${btn('dropPuck', '<span class="blink">PRESS START TO DROP THE PUCK</span>', '', 'red default')}${btn('vsBack', 'BACK')}</div>`,
     after: () => { app.pending = sp; },
     back: A.vsBack,
@@ -838,7 +905,7 @@ function gameShell(sp) {
         ${mi('quitGame', sp.mode === 'online' ? 'LEAVE GAME' : isFranchise(sp) ? 'SIM TO END & EXIT' : 'QUIT TO MENU')}
         ${opt('SOUND', 'audio', 'muted', audio.muted)}
         ${canFullscreen() ? mi('fullscreen', 'FULL SCREEN') : ''}
-      </div>${isTouchDevice() && sp.humans?.length !== 2 ? touchLegend() : controlsHtml(sp.humans?.length || 1)}`, 'pause-win')}</div>
+      </div>${isTouchDevice() && !padConnected() && sp.humans?.length !== 2 ? touchLegend() : controlsHtml(sp.humans?.length || 1)}`, 'pause-win')}</div>
   </div>`;
 }
 
@@ -890,7 +957,7 @@ function fit() {
   const gm = $('.game'), st = $('#stage'), cv = $('#cv');
   if (!gm || !st || !cv) return;
   const W = gm.clientWidth, H = gm.clientHeight, sa = safeInsets();
-  const pad = gm.querySelector('.touch');
+  const pad = gm.classList.contains('pad-mode') ? null : gm.querySelector('.touch');
   let stage = { x: 0, y: 0, w: W, h: H }, mode = 'none', g = null, cap = null;
   if (pad) {
     const seg = segments();
@@ -1043,6 +1110,7 @@ function launch(sp) {
   input.onFullscreen = () => toggleFullscreen();
   if (!sp.humans.length) document.addEventListener('keydown', speedKey);
   if (sp.humans.length && mountTouch($('.game'), input)) $('.game').classList.add('has-touch');
+  wireSource();
   fit();
   holdWake(true);
   g.start();
@@ -1241,7 +1309,7 @@ A.joinRoom = () => {
 function waitingScreen(code) {
   return {
     html: `${win('ROOM CODE', `<div class="room-code">${esc(code)}</div>
-      <p class="note center">Send this code to a friend. They choose ONLINE → JOIN A GAME.</p>
+      <p class="note center">Send this code to a friend. They choose ONLINE > JOIN A GAME.</p>
       <p class="center blink">WAITING FOR A CHALLENGER…</p>
       <div class="btnrow center">${btn('leaveOnline', 'CANCEL', '', 'default')}</div>`, 'waiting')}`,
     back: () => leaveOnline(),
@@ -1304,6 +1372,7 @@ function launchOnline(m) {
   input.onPause = () => togglePause();
   input.onFullscreen = () => toggleFullscreen();
   if (mountTouch($('.game'), input)) $('.game').classList.add('has-touch');
+  wireSource();
   fit();
   holdWake(true);
   g.start();
@@ -1321,7 +1390,7 @@ A.rematch = () => netSend({ t: 'rematch' });
 // ---------------------------------------------------------------- instructions
 
 const HOWTO = [
-  ['CONTROLS', () => `${controlsHtml(1)}<p class="note">Two players on one keyboard:</p>${controlsHtml(2)}<p class="note">Change any key or gamepad button under OPTIONS → CONTROLS. Phones get a touch stick.</p>`],
+  ['CONTROLS', () => `${controlsHtml(1)}<p class="note">Two players on one keyboard:</p>${controlsHtml(2)}<p class="note">TOP SHELF plays best with a controller: plug one in (or pair it over Bluetooth on a phone) and press any button. Change any key or gamepad button under OPTIONS > CONTROLS. Phones also get a touch stick: push it to its rim to sprint.</p>`],
   ['WITH THE PUCK', () => `<p><b>TAP SHOOT</b> for a quick wrister. <b>HOLD SHOOT</b> to load a slapper; the meter fills while you glide slower.</p>
     <p><b>ONE-TIMER:</b> hit SHOOT while your pass is still on its way. The receiver fires on arrival, before the goalie can slide across.</p>
     <p><b>PICK YOUR SPOT:</b> hold left or right as you release to aim at a post. Hit the top of the net for a TOP SHELF.</p>
@@ -1364,6 +1433,7 @@ function optionsScreen() {
           ${opt('SOUND', 'audio', 'muted', audio.muted)}
           ${opt('GOAL REPLAYS', 'prefs', 'replays', p.replays)}
           ${opt('AUTO SWITCH', 'prefs', 'autoSwitch', p.autoSwitch)}
+          ${isTouchDevice() ? opt('TOUCH ASSIST', 'prefs', 'touchAssist', p.touchAssist) : ''}
           ${navigator.vibrate ? opt('VIBRATION', 'prefs', 'vibrate', p.vibrate) : ''}
           ${opt('PERIOD LENGTH', 'prefs', 'periodLen', p.periodLen)}
           ${opt('DIFFICULTY', 'prefs', 'difficulty', p.difficulty)}

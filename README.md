@@ -75,6 +75,8 @@ Then open http://localhost:3000. The server reads `PORT` from the environment wh
 - **Aim:** hold left or right as you release a shot to pick a post.
 - **Faceoffs:** press pass or shoot as the puck drops to win the draw.
 - **Two players on one keyboard:** P1 uses WASD + C / V / B + Left Shift; P2 uses Arrows + , / . / / + Right Shift.
+- **Best with a controller.** Any controller the browser supports works, on a computer or paired over Bluetooth on a phone: press any button and it's live. On a touch screen, the touch buttons step aside while a controller is in use, and come back when you touch the screen.
+- **Touch assist** (OPTIONS > GAME, on by default, touch controls only): shots go to the far side of the goalie, and checks and poke checks home in on a nearby opponent. Push the stick to its rim to sprint.
 - **Phones and foldables:** drag anywhere on the left to skate (the stick centres where your thumb lands). The PASS, SHOOT, DEKE and SPRINT buttons sit under your right thumb. In portrait the controls get their own band under the rink. In landscape they sit beside it. On a half-folded foldable they move to the other half of the screen. FULL SCREEN is on the title menu and the pause menu. On iPhone, use Add to Home Screen.
 
 ## Deploy to Railway

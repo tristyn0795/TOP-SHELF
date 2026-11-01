@@ -128,6 +128,9 @@ export class Input {
     this.touch = { mx: 0, my: 0, pass: false, shoot: false, deke: false, sprint: false };
     this.onPause = null;
     this.onAny = null;
+    this.onSource = null;   // called with 'pad' | 'keys' | 'touch' when the player switches device
+    this.source = null;
+    this.assist = true;     // touch assist (aim help) while playing on the touch controls
     this.active = false;
     window.addEventListener('keydown', (e) => this.key(e, true));
     window.addEventListener('keyup', (e) => this.key(e, false));
@@ -135,6 +138,12 @@ export class Input {
   }
 
   blank() { return { np: 0, ns: 0, nd: 0 }; }
+
+  setSource(src) {
+    if (src === this.source) return;
+    this.source = src;
+    this.onSource?.(src);
+  }
 
   setPlayers(n) { this.players = n; }
 
@@ -155,12 +164,14 @@ export class Input {
       }
     });
     if (down && !e.repeat) this.onAny?.(code);
+    if (down && used) this.setSource('keys');
     if (used || code === 'Tab') e.preventDefault();
     if (down) this.keys.add(code); else this.keys.delete(code);
   }
 
   pressTouch(act) {
     this.touch[act] = true;
+    this.setSource('touch');
     if (CNT[act]) this.state[0][CNT[act]]++;
     this.onAny?.(act);
   }
@@ -179,6 +190,7 @@ export class Input {
       if (b(14)) mx = -1; if (b(15)) mx = 1; if (b(12)) my = -1; if (b(13)) my = 1;
       const st = { mx, my, pass: any(pb.pass), shoot: any(pb.shoot), deke: any(pb.deke), sprint: any(pb.sprint), start: any(pb.pause) };
       const prev = this.padPrev[p.index] || {};
+      if (this.active && (st.pass || st.shoot || st.deke || st.sprint || st.start || Math.hypot(mx, my) > 0.5)) this.setSource('pad');
       const player = this.players === 2 ? Math.min(idx, 1) : 0;
       for (const act of ['pass', 'shoot', 'deke']) if (st[act] && !prev[act]) { this.state[player][CNT[act]]++; this.onAny?.(act); }
       if (st.start && !prev.start) this.onPause?.();
@@ -209,6 +221,7 @@ export class Input {
       }
       const l = Math.hypot(r.mx, r.my);
       if (l > 1) { r.mx /= l; r.my /= l; }
+      if (i === 0 && this.assist && this.source === 'touch') r.as = 1;
       Object.assign(r, this.state[i]);
       res.push({ ...r });
     });
@@ -241,11 +254,13 @@ export function mountTouch(root, input) {
   root.appendChild(el);
   const zone = el.querySelector('.tstick'), base = el.querySelector('.tbase'), knob = el.querySelector('.knob');
   const btnZone = el.querySelector('.tbtnzone'), sys = el.querySelector('.tsys');
-  let sid = null, o = null, R = 56;
+  let sid = null, o = null, R = 56, edgeSprint = false, sprintHeld = false;
 
   const rest = () => {
     sid = null;
-    base.classList.remove('on');
+    base.classList.remove('on', 'sprint');
+    if (edgeSprint && !sprintHeld) input.touch.sprint = false;
+    edgeSprint = false;
     base.style.left = '50%';
     base.style.top = '60%';
     knob.style.transform = '';
@@ -260,6 +275,9 @@ export function mountTouch(root, input) {
     const n = Math.min(l, 1), m = clampN((n - 0.12) / 0.48, 0, 1);
     input.touch.mx = n > 0 ? (dx / n) * m : 0;
     input.touch.my = n > 0 ? (dy / n) * m : 0;
+    // push the stick right out to the rim to sprint, so the right thumb stays free
+    const rim = n > 0.95;
+    if (rim !== edgeSprint) { edgeSprint = rim; base.classList.toggle('sprint', rim); if (!sprintHeld) input.touch.sprint = rim; }
     knob.style.transform = `translate(${dx * R}px, ${dy * R}px)`;
   };
   zone.addEventListener('touchstart', (e) => {
@@ -267,6 +285,7 @@ export function mountTouch(root, input) {
     if (sid !== null) return;
     const t = e.changedTouches[0];
     sid = t.identifier;
+    input.setSource('touch');
     const zr = zone.getBoundingClientRect();
     R = clampN(Math.min(zr.width, zr.height) * 0.28, 38, 70);
     o = { x: clampN(t.clientX, zr.left + R, zr.right - R), y: clampN(t.clientY, zr.top + R, zr.bottom - R) };
@@ -291,11 +310,12 @@ export function mountTouch(root, input) {
       b.classList.add('down');
       if (a === 'pause') input.onPause?.();
       else if (a === 'fs') input.onFullscreen?.();
-      else input.pressTouch(a);
+      else { input.pressTouch(a); if (a === 'sprint') sprintHeld = true; }
     }, { passive: false });
     const up = (e) => {
       e.preventDefault();
       b.classList.remove('down');
+      if (a === 'sprint') { sprintHeld = false; if (edgeSprint) return; }
       if (a !== 'pause' && a !== 'fs') input.releaseTouch(a);
     };
     b.addEventListener('touchend', up, { passive: false });

@@ -258,7 +258,7 @@ export function createGM(h) {
         <div class="cols">
           ${h.win('BIG BOARD', `<div class="scroll"><table class="tbl"><tr><th>RK</th><th class="l">PROSPECT</th><th>POS</th><th>AGE</th><th>OVR</th><th>POT</th><th></th></tr>${board}</table></div>`)}
           <div>
-            ${h.win('YOUR PICKS', myPicks.length ? myPicks.map((o) => `<div class="gm-row">R${o.round} #${o.n} ${o.pid ? `→ ${h.esc(o.name || '').toUpperCase()} (${o.pos})` : '<i>TO COME</i>'}</div>`).join('') : '<p class="note">You traded away your picks this year.</p>')}
+            ${h.win('YOUR PICKS', myPicks.length ? myPicks.map((o) => `<div class="gm-row">R${o.round} #${o.n} ${o.pid ? `> ${h.esc(o.name || '').toUpperCase()} (${o.pos})` : '<i>TO COME</i>'}</div>`).join('') : '<p class="note">You traded away your picks this year.</p>')}
             ${h.win('LATEST PICKS', off.log.slice(0, 10).map((x) => `<div class="gm-row">${h.esc(x)}</div>`).join('') || '<p class="note">The draft is about to begin.</p>')}
           </div>
         </div>

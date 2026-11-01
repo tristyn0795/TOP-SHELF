@@ -99,7 +99,7 @@ export function createStudio(h) {
             ${h.win(l ? h.esc(CATS[l.cat].label).toUpperCase() : 'TAKE', take)}
             ${h.win('LINES IN THIS CATEGORY', `<div class="line-list menu-list">${list || '<p class="note">None with this filter.</p>'}</div>`)}
             ${h.win('EXPORT', `
-              <p class="note">Your takes play in the game right away, in this browser. To put them in the real game for everyone: download the zip, then upload the MP3s inside its <b>voice</b> folder into <b>public/voice/</b> in your GitHub repo (Add file → Upload files). Railway redeploys automatically.</p>
+              <p class="note">Your takes play in the game right away, in this browser. To put them in the real game for everyone: download the zip, then upload the MP3s inside its <b>voice</b> folder into <b>public/voice/</b> in your GitHub repo (Add file > Upload files). Railway redeploys automatically.</p>
               <div class="btnrow">${h.btn('stExport', `DOWNLOAD ALL (${local})`, local ? '' : 'disabled', 'red')}${h.btn('stExportNew', 'DOWNLOAD NEW', local ? '' : 'disabled')}${h.btn('stPrint', 'PRINT SCRIPT')}</div>`)}
           </div>
         </div>

@@ -116,4 +116,20 @@ for (const auto of [true, false]) {
   ok(`turnaround from full speed (${top.toFixed(1)} ft/s) to 90% the other way: ${t.toFixed(2)}s`);
 }
 
+// 6. touch assist: a check with no stick direction homes in on the carrier beside you
+for (const as of [1, 0]) {
+  const s = setup(false);
+  const { car } = breakaway(s);
+  const k = s.skaters.find((x) => x.team === 0 && x.role.endsWith('D'));
+  Object.assign(k, { x: car.x - 4, y: car.y - 7, vx: 0, vy: 0, a: 0, cd: { ...k.cd, chk: 0 }, stun: 0 });
+  Object.assign(car, { vx: 0, vy: 0 });
+  s.humans[0].sk = k.id;
+  s.humans[0].swT = s.time;
+  step(s, [{ shoot: true, as }], DT);
+  const toCar = Math.atan2(car.y - k.y, car.x - k.x), lunge = Math.atan2(k.vy, k.vx);
+  const off = Math.abs(Math.atan2(Math.sin(toCar - lunge), Math.cos(toCar - lunge)));
+  if (as) { assert.ok(off < 0.5, `assisted check should aim at the carrier (off by ${off.toFixed(2)} rad)`); ok(`touch assist: check lunges at the carrier (off by ${off.toFixed(2)} rad)`); }
+  else { assert.ok(off > 0.5, 'unassisted check goes where you face'); ok('no assist: check goes where you face'); }
+}
+
 console.log('SWITCH CHECKS PASSED');

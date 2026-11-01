@@ -32,7 +32,7 @@ function cleanInput(i) {
   return {
     mx: clampU(i.mx), my: clampU(i.my),
     pass: !!i.pass, shoot: !!i.shoot, deke: !!i.deke, sprint: !!i.sprint,
-    np: num(i.np), ns: num(i.ns), nd: num(i.nd),
+    np: num(i.np), ns: num(i.ns), nd: num(i.nd), as: !!i.as,
   };
 }
 

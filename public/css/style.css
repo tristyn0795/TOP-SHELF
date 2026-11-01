@@ -317,6 +317,29 @@ body.attract-on #attract { display: block; }
 .game.ctl-bottom .stage, .game.ctl-split-v .stage { align-items: flex-end; }
 .game.ctl-split-v .touch::before, .game.ctl-split-h .touch::before { content: ''; position: absolute; background: rgba(255, 255, 255, 0.04); }
 
+/* controller hints, toasts, patch notes */
+.pad-ico { width: 2em; height: 1.25em; vertical-align: -0.2em; margin-right: 6px; }
+.pad-hint { font-size: 9px; color: var(--hl); text-align: center; line-height: 1.8; text-shadow: 1px 1px 0 #000; }
+.pad-hint small { display: block; color: #fff; margin-top: 4px; }
+.pad-hint .ok, .pad-tip .ok { color: var(--good); }
+.pad-tip { font-size: 9px; color: var(--hl); line-height: 1.8; margin-top: 10px; }
+.toast {
+  position: fixed; left: 50%; top: calc(14px + var(--sat)); transform: translateX(-50%); z-index: 200; pointer-events: none;
+  padding: 10px 14px; font-size: 10px; color: var(--hl); background: rgba(5, 10, 48, 0.95); white-space: nowrap;
+  border: 3px solid; border-color: var(--bevel-hi) var(--bevel-lo) var(--bevel-lo) var(--bevel-hi); outline: 2px solid #000;
+  animation: toast 2.6s steps(6, end) both;
+}
+@keyframes toast { 0% { opacity: 0; transform: translate(-50%, -10px); } 10%, 85% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
+.new-tag { font-style: normal; font-size: 9px; color: #fff; background: var(--red); padding: 2px 4px; margin-left: 6px; vertical-align: 1px; animation: blink 0.9s steps(2, start) infinite; }
+.note-title { font-size: 11px; color: var(--hl); margin-bottom: 10px; }
+.notes { margin: 0; padding-left: 16px; font-size: 9px; line-height: 2; }
+.notes li { margin-bottom: 6px; }
+.notes li::marker { color: var(--red); }
+
+/* a controller (or keyboard) is in use on a touch screen: the rink gets the whole screen */
+.game.pad-mode .touch { display: none; }
+.tbase.sprint { background: rgba(10, 160, 100, 0.25); box-shadow: inset 0 0 0 3px rgba(80, 255, 170, 0.8); }
+
 /* ---------------------------------------------------------------- small screens */
 @media (max-width: 860px) {
   .season-grid { grid-template-columns: minmax(220px, 260px) 1fr; }
